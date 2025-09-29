@@ -27,7 +27,7 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
     if not user_info:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid Credentials")
     
-    print(user_info)
+    # print(user_info)
     user = db.query(models.User).filter(models.User.provider_id == user_info["sub"]).first()
     # create the user if not present
     if not user:
