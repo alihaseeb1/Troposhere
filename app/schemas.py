@@ -7,3 +7,6 @@ from datetime import datetime
 class User:
     id : int
     email : EmailStr
+    name : str
+    picture : Optional[str]
+    
