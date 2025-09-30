@@ -9,7 +9,8 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 app.include_router(login.router)
 
-Base.metadata.create_all(bind=engine)
+# we don't need this as alembic will take care of it
+# Base.metadata.create_all(bind=engine)
 
 
 @app.get("/")

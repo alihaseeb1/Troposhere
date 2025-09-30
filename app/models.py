@@ -2,7 +2,7 @@
 
 from sqlalchemy import ForeignKey, Integer, String, Boolean, text, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-import datetime
+from datetime import datetime
 from .database import Base
 import enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
