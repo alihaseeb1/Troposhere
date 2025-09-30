@@ -8,13 +8,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
 
 class GlobalRoles(Enum):
-    SUPERUSER = "superuser" # site-wide admin
-    USER = "user"
+    SUPERUSER = 1 # site-wide admin
+    USER = 0
 
 class ClubRoles(Enum):
-    ADMIN = "admin"
-    MODERATOR = "moderator"
-    MEMBER = "member"
+    ADMIN = 3
+    MODERATOR = 2
+    MEMBER = 1
 
 class User(Base):
     __tablename__ = "users"
@@ -26,9 +26,9 @@ class User(Base):
     provider_id : Mapped[str] = mapped_column(String, nullable=False, unique=True)
     provider : Mapped[str] = mapped_column(String, nullable=False)
     picture : Mapped[str] = mapped_column(String, nullable=True)
-    global_role : Mapped[GlobalRoles] = mapped_column(String, nullable=False, default=GlobalRoles.USER.value)
+    global_role : Mapped[GlobalRoles] = mapped_column(Integer, nullable=False, default=GlobalRoles.USER.value)
     memberships : Mapped[list["Membership"]] = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
-    
+
 class Club(Base):
     __tablename__ = "clubs"
     id : Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
@@ -41,7 +41,7 @@ class Membership(Base):
     __tablename__ = "memberships"
     user_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     club_id : Mapped[int] = mapped_column(Integer, ForeignKey("clubs.id", ondelete="CASCADE"), primary_key=True)
-    role : Mapped[ClubRoles] = mapped_column(String, nullable=False, default=ClubRoles.MEMBER)
+    role : Mapped[ClubRoles] = mapped_column(Integer, nullable=False, default=ClubRoles.MEMBER)
     joined_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
     
     # relationships

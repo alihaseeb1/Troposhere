@@ -44,12 +44,10 @@ def require_role(role: str):
         # if they have no membership at all in the current club then we provide no access
         if not membership:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions! Not a member of the Club")
-        # if required role is admin, check if user is admin
-        if role == models.ClubRoles.ADMIN.value and membership.role != models.ClubRoles.ADMIN.value:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
-        # if required role is moderator, check if user is moderator or admin
-        if role == models.ClubRoles.MODERATOR.value and membership.role not in [models.ClubRoles.MODERATOR.value, models.ClubRoles.ADMIN.value]:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="At least Moderator role required")
-        # we do nothing if required role is member
-        return current_user
+        # we need the role to be higher or equal to the required role
+        if role <= membership.role:
+            return current_user
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions!")
+
     return role_checker
