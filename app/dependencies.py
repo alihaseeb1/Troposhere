@@ -31,6 +31,7 @@ def require_club_role(role: int):
         if current_user.global_role == models.GlobalRoles.SUPERUSER.value:
             return current_user
         
+        # print("Checking for club", club_id)
         if club_id is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superuser role required")
         # else make sure appropriate club role is present
