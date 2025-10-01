@@ -25,14 +25,12 @@ def get_current_user(db: Session = Depends(get_db), credentials: HTTPAuthorizati
     return user
 
 # Dependecy to check if user has a specific role in a club to access certain routes as well as if they are logged in
-def require_role(role: str):
-    def role_checker(club_id: Optional[int] = None, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+def require_club_role(role: int):
+    def role_checker(club_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
         # allow access if user is a superuser
         if current_user.global_role == models.GlobalRoles.SUPERUSER.value:
             return current_user
         
-        # this means that the route is not club-specific, therefore we only allow superusers beyond this point which is already checked
-        # therefore we raise an error
         if club_id is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superuser role required")
         # else make sure appropriate club role is present
@@ -49,5 +47,17 @@ def require_role(role: str):
             return current_user
         else:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions!")
+
+    return role_checker
+
+
+# Dependecy to check if user has a required global role in a club to access certain routes as well as if they are logged in
+def require_global_role(role: int):
+    def role_checker(current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+        # allow access if user is a superuser
+        if current_user.global_role >= role:
+            return current_user
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Global Permissions!")
 
     return role_checker

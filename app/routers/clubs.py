@@ -1,6 +1,8 @@
 
-from fastapi import APIRouter, Depends, HTTPException
-from ..dependencies import require_role
+from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
+from ..dependencies import require_global_role, require_club_role
 from .. import models
 from .. import schemas
 from sqlalchemy.orm import Session
@@ -14,7 +16,7 @@ def is_existing_membership(user_id: int, club_id: int, db: Session):
 
 # Create a club
 @router.post("/", response_model=schemas.ClubOut, status_code=status.HTTP_201_CREATED)
-def create_club(club : schemas.Club, user: models.User = Depends(require_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
+def create_club(club : schemas.Club, user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
     new_club = models.Club(name=club.name, description=club.description)
     
     db.add(new_club)
@@ -23,82 +25,52 @@ def create_club(club : schemas.Club, user: models.User = Depends(require_role(ro
 
     return new_club
 
-# make a user admin of a club
-@router.put("/{club_id}/make_admin/{user_id}", response_model=schemas.MembershipOut, status_code=status.HTTP_201_CREATED)
-def make_admin(club_id: int, user_id: int, user: models.User = Depends(require_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
-    existing_member = is_existing_membership(user_id, club_id, db)
-    if existing_member:
-        if existing_member.role == models.ClubRoles.ADMIN.value:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already an admin of the club")
-        else:
-            # upgrade to an admin only possible if the one making the change is a superuser
-            if user.global_role != models.GlobalRoles.SUPERUSER.value:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions to downgrade this user")
-
-            existing_member.role = models.ClubRoles.ADMIN.value
-            db.commit()
-            db.refresh(existing_member)
-            return existing_member
-        
-    new_membership = models.Membership(user_id=user_id, club_id=club_id, role=models.ClubRoles.ADMIN.value)
-    db.add(new_membership)
-    db.commit()
-    db.refresh(new_membership)
+# delete an existing club
+@router.delete("/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_club(club_id: int, user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
+    club_query = db.query(models.Club).filter(models.Club.id == club_id)
+    club = club_query.first()
+    if not club:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Club not found")
     
-    return new_membership
+    club_query.delete(synchronize_session=False)
+    db.commit()
+    return Response(status.HTTP_204_NO_CONTENT)
 
-@router.put("/{club_id}/make_moderator/{user_id}", response_model=schemas.MembershipOut, status_code=status.HTTP_201_CREATED)
-def make_moderator(club_id: int, user_id: int, user: models.User = Depends(require_role(role=models.ClubRoles.ADMIN.value)), db: Session = Depends(get_db)):
+# Modify user roles or add a user to a club
+@router.put("/{club_id}/roles/{user_id}", response_model=schemas.MembershipOut)
+def set_roles(club_id: int, user_id: int, set_role: schemas.MembershipIn, user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), db: Session = Depends(get_db)):
+    
     existing_member = is_existing_membership(user_id, club_id, db)
+    
     if existing_member:
-        if existing_member.role == models.ClubRoles.MODERATOR.value:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already a moderator of the club")
+        if existing_member.role == set_role.role.value:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"User is already a(an) {set_role.role.name} of the club")
         else:
             changer_membership = is_existing_membership(user.id, club_id, db)
             if user.global_role != models.GlobalRoles.SUPERUSER.value:
                 # downgrade/upgrade to moderator only possible if rank lower than the user making the change
                 if not changer_membership or changer_membership.role <= existing_member.role:
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions to downgrade this user")
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Insufficient Permissions to Set Membership Role to {set_role.role.name} for user_id: {user_id}")
+                if set_role.role.value >= changer_membership.role:
+                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Insufficient Permissions to Set Membership Role to {set_role.role.name} for user_id: {user_id}")
                 
-            existing_member.role = models.ClubRoles.MODERATOR.value
+
+            existing_member.role = set_role.role.value
             db.commit()
             db.refresh(existing_member)
-            return existing_member
-    
-    new_membership = models.Membership(user_id=user_id, club_id=club_id, role=models.ClubRoles.ADMIN.value)
+            return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(existing_member))
+        
+    new_membership = models.Membership(user_id=user_id, club_id=club_id, role=set_role.role.value)
     db.add(new_membership)
     db.commit()
     db.refresh(new_membership)
     
-    return new_membership
-
-@router.put("/{club_id}/make_member/{user_id}", response_model=schemas.MembershipOut, status_code=status.HTTP_201_CREATED)
-def add_member(club_id: int, user_id: int, user: models.User = Depends(require_role(role=models.ClubRoles.MODERATOR.value)), db: Session = Depends(get_db)):
-    existing_member = is_existing_membership(user_id, club_id, db)
-    if is_existing_membership(user_id, club_id, db):
-        if existing_member.role == models.ClubRoles.MEMBER.value:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already a member of the club")
-        else:
-            # downgrade only possible if rank lower than the user making the change
-            changer_membership = is_existing_membership(user.id, club_id, db)
-            if user.global_role != models.GlobalRoles.SUPERUSER.value:
-                if not changer_membership or changer_membership.role <= existing_member.role:
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions to downgrade this user")
-                
-            existing_member.role = models.ClubRoles.MEMBER.value
-            db.commit()
-            db.refresh(existing_member)
-            return existing_member
-    new_membership = models.Membership(user_id=user_id, club_id=club_id, role=models.ClubRoles.MEMBER.value)
-    db.add(new_membership)
-    db.commit()
-    db.refresh(new_membership)
-
-    return new_membership
+    return JSONResponse(status_code=status.HTTP_201_CREATED, content=jsonable_encoder(new_membership))
 
 # remove a user from a club
-@router.delete("/{club_id}/delete_user/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_member(club_id: int, user_id: int, user: models.User = Depends(require_role(role=models.ClubRoles.MEMBER.value)), db: Session = Depends(get_db)):
+@router.delete("/{club_id}/roles/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_member(club_id: int, user_id: int, user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), db: Session = Depends(get_db)):
     existing_member = is_existing_membership(user_id, club_id, db)
     if not existing_member:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not a member of the club")
@@ -111,4 +83,4 @@ def remove_member(club_id: int, user_id: int, user: models.User = Depends(requir
         
         db.delete(existing_member)
         db.commit()
-        return status.HTTP_204_NO_CONTENT
+        return Response(status.HTTP_204_NO_CONTENT)
