@@ -26,7 +26,7 @@ def get_current_user(db: Session = Depends(get_db), credentials: HTTPAuthorizati
 
 # Dependecy to check if user has a specific role in a club to access certain routes as well as if they are logged in
 def require_club_role(role: int):
-    def role_checker(club_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    def role_checker(club_id: int, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db), club : models.Club = Depends(is_club_exist)):
         # allow access if user is a superuser
         if current_user.global_role == models.GlobalRoles.SUPERUSER.value:
             return current_user
@@ -62,3 +62,15 @@ def require_global_role(role: int):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Global Permissions!")
 
     return role_checker
+
+def is_club_exist(club_id : int, db: Session = Depends(get_db)):
+    club = db.query(models.Club).filter(models.Club.id == club_id).first()
+    if not club:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Club does not exist")
+    return club
+
+def is_item_exist(item_id : int, db: Session = Depends(get_db)):
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item does not exist")
+    return item

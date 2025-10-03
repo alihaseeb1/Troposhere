@@ -3,7 +3,7 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from datetime import datetime
-from .models import ClubRoles
+from .models import ClubRoles, ItemStatus
 
 class User(BaseModel):
     email : EmailStr
@@ -11,6 +11,15 @@ class User(BaseModel):
     picture : Optional[str]
     global_role : int
 
+class UserOut(BaseModel):
+    id : int
+    email : EmailStr
+    name : str
+    picture : Optional[str]
+
+    model_config = {
+        "from_attributes": True
+    }
 
 class Club(BaseModel):
     name : str
@@ -52,3 +61,28 @@ class MembershipOut(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+class ClubMembersOut(BaseModel):
+    User: UserOut
+    Membership: MembershipOut
+    model_config = {
+        "from_attributes": True
+    }
+
+class Item(BaseModel):
+    name : str
+    description : Optional[str] = ""
+    is_high_risk : Optional[bool] = False
+    status : Optional[str] = ItemStatus.AVAILABLE.value
+
+class ItemOut(Item):
+    id : int
+    created_at : datetime
+    club_id : Optional[int]
+
+    model_config = {
+        "from_attributes": True
+    }
+
+class ItemTransferIn(BaseModel):
+    club_id : Optional[int]

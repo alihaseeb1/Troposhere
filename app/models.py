@@ -16,6 +16,11 @@ class ClubRoles(Enum):
     MODERATOR = 2
     MEMBER = 1
 
+class ItemStatus(Enum):
+    AVAILABLE = "available"
+    OUT_OF_SERVICE = "out_of_service"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -37,6 +42,8 @@ class Club(Base):
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
     memberships : Mapped[list["Membership"]] = relationship("Membership", back_populates="club", cascade="all, delete-orphan")
 
+    items : Mapped[list["Item"]] = relationship("Item", back_populates="club")
+
 class Membership(Base):
     __tablename__ = "memberships"
     user_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
@@ -52,3 +59,15 @@ class Membership(Base):
     __table_args__ = (
         UniqueConstraint('user_id', 'club_id', name='uix_user_club'),
     )
+
+# items can be without a club, and items are transferrable between clubs
+class Item(Base):
+    __tablename__ = "items"
+    id : Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    name : Mapped[str] = mapped_column(String, nullable=False)
+    description : Mapped[str] = mapped_column(String, nullable=True)
+    club_id : Mapped[int] = mapped_column(Integer, ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True, index=True)
+    is_high_risk : Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
+    created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    status : Mapped[ItemStatus] = mapped_column(String, nullable=False, server_default=ItemStatus.AVAILABLE.value)
+    club: Mapped["Club"] = relationship("Club", back_populates="items")

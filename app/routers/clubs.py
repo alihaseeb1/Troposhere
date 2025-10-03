@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from ..dependencies import require_global_role, require_club_role
+from ..dependencies import require_global_role, require_club_role, is_club_exist
 from .. import models
 from .. import schemas
 from sqlalchemy.orm import Session
@@ -27,19 +27,31 @@ def create_club(club : schemas.Club, user: models.User = Depends(require_global_
 
 # delete an existing club
 @router.delete("/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_club(club_id: int, user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
-    club_query = db.query(models.Club).filter(models.Club.id == club_id)
-    club = club_query.first()
-    if not club:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Club not found")
+def delete_club(user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), 
+                db: Session = Depends(get_db), 
+                club : models.Club = Depends(is_club_exist)):
     
-    club_query.delete(synchronize_session=False)
+    db.delete(club)
     db.commit()
-    return Response(status.HTTP_204_NO_CONTENT)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# get all club members
+@router.get("/{club_id}/members", response_model=list[schemas.ClubMembersOut])
+def get_club_members(club_id : int, 
+                     user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
+                     db: Session = Depends(get_db)):
+    
+    members = db.query(models.User, models.Membership).join(models.Membership, models.User.id==models.Membership.user_id).filter(models.Membership.club_id == club_id).all()
+
+    return members
+
 
 # Modify user roles or add a user to a club
 @router.put("/{club_id}/roles/{user_id}", response_model=schemas.MembershipOut)
-def set_roles(club_id: int, user_id: int, set_role: schemas.MembershipIn, user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), db: Session = Depends(get_db)):
+def set_roles(club_id: int, 
+              user_id: int, set_role: schemas.MembershipIn, 
+              user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
+              db: Session = Depends(get_db)):
     
     existing_member = is_existing_membership(user_id, club_id, db)
     
@@ -70,7 +82,10 @@ def set_roles(club_id: int, user_id: int, set_role: schemas.MembershipIn, user: 
 
 # remove a user from a club
 @router.delete("/{club_id}/roles/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def remove_member(club_id: int, user_id: int, user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), db: Session = Depends(get_db)):
+def remove_member(club_id: int, user_id: int, 
+                  user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
+                  db: Session = Depends(get_db)):
+    
     existing_member = is_existing_membership(user_id, club_id, db)
     if not existing_member:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not a member of the club")
@@ -84,3 +99,17 @@ def remove_member(club_id: int, user_id: int, user: models.User = Depends(requir
         db.delete(existing_member)
         db.commit()
         return Response(status.HTTP_204_NO_CONTENT)
+    
+@router.post("/{club_id}/items", status_code=status.HTTP_201_CREATED, response_model=schemas.ItemOut, tags=["Item Management"])
+def add_item(club_id : int, 
+             item : schemas.Item, 
+             club : models.Club = Depends(is_club_exist),
+             user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value)), 
+             db: Session = Depends(get_db)):
+    
+    new_item = models.Item(**item.model_dump(), club_id = club_id)
+    db.add(new_item)
+    db.commit()
+    db.refresh(new_item)
+
+    return new_item
