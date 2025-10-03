@@ -12,3 +12,8 @@ To access the documentation:
    
 To run the server type "fastapi dev app/main.py"
 Note: use localhost:8000 instead of the IP address (won't work with the google auth)
+
+To test locally you need a token:
+1. type localhost:8000/auth in the browser
+2. copy the token
+3. Use this in HTTP Authorization header with type bearer (can also use the likes of postman)
