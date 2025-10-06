@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from ..dependencies import require_global_role, require_club_role, is_club_exist
+from ..dependencies import require_global_role, require_club_role, is_club_exist, is_item_exist
 from .. import models
 from .. import schemas
 from sqlalchemy.orm import Session
@@ -113,3 +113,22 @@ def add_item(club_id : int,
     db.refresh(new_item)
 
     return new_item
+
+# Update an item in a club (requires ADMIN role) 
+@router.put("/{club_id}/items/{item_id}", status_code=status.HTTP_200_OK, response_model=schemas.ItemOut, tags =["Item Management"])
+def update_item(club_id : int, 
+                new_item : schemas.ItemUpdate, 
+                user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value)), 
+                item : models.Item = Depends(is_item_exist),
+                db: Session = Depends(get_db)):
+    
+    if item.club_id != club_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item does not belong to this club")
+    
+    for field, value in new_item.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+
+    db.commit()
+    db.refresh(item)
+
+    return item     

@@ -62,5 +62,19 @@ def change_ownership(to_club: schemas.ItemTransferIn,
     db.refresh(item)
 
     return item
-        
+
+# Update an item without a club (requires SUPERUSER role) 
+@router.put("/{item_id}", status_code=status.HTTP_200_OK, response_model=schemas.ItemOut)
+def update_item(new_item : schemas.ItemUpdate, 
+             user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), 
+             item : models.Item = Depends(is_item_exist),
+             db: Session = Depends(get_db)):
+    
+    for field, value in new_item.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+
+    db.commit()
+    db.refresh(item)
+
+    return item        
 

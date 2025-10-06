@@ -73,7 +73,7 @@ class Item(BaseModel):
     name : str
     description : Optional[str] = ""
     is_high_risk : Optional[bool] = False
-    status : Optional[str] = ItemStatus.AVAILABLE.value
+    status : Optional[str] = ItemStatus.AVAILABLE
 
 class ItemOut(Item):
     id : int
@@ -85,4 +85,10 @@ class ItemOut(Item):
     }
 
 class ItemTransferIn(BaseModel):
-    club_id : Optional[int]
+    club_id : Optional[int] = None
+
+class ItemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[ItemStatus] = None
+    is_high_risk: Optional[bool] = None
