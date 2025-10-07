@@ -21,13 +21,13 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade():
     conn = op.get_bind()
     conn.execute(sa.text("""
-        INSERT INTO item_borrowing_transaction (req_id, tstamp, operator_id, status)
+        INSERT INTO item_borrowing_transactions 
+        (item_borrowing_request_id, processed_at, operator_id, status, remarks)
         VALUES
-        (1, now(), 1, 'borrowed'),
-        (2, now(), 1, 'pending')
+        (1, now(), 1, 'approved', 'Approved by admin'),
+        (2, now(), 1, 'pending_condition_check', 'Awaiting condition check');
     """))
-
 
 def downgrade():
     conn = op.get_bind()
-    conn.execute(sa.text("DELETE FROM item_borrowing_transaction"))
+    conn.execute(sa.text("DELETE FROM item_borrowing_transactions"))

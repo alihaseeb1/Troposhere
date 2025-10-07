@@ -17,13 +17,15 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.create_table(
-        'item_borrowing_request',
+        'item_borrowing_requests',
         sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('item_id', sa.Integer, sa.ForeignKey('items.id'), nullable=False),
-        sa.Column('issued_date', sa.DateTime, nullable=False, server_default=sa.func.now()),
-        sa.Column('set_return_date', sa.DateTime, nullable=False)
+        sa.Column('item_id', sa.Integer, sa.ForeignKey('items.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('borrower_id', sa.Integer, sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('return_date', sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text("now() + interval '7 days'")),
+        sa.Column('created_at', sa.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text('now()'))
     )
+
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_table('item_borrowing_request')
+    op.drop_table('item_borrowing_requests')

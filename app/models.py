@@ -6,6 +6,7 @@ from datetime import datetime
 from .database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
+from typing import Optional
 
 class GlobalRoles(Enum):
     SUPERUSER = 1 # site-wide admin
@@ -19,6 +20,19 @@ class ClubRoles(Enum):
 class ItemStatus(Enum):
     AVAILABLE = "available"
     OUT_OF_SERVICE = "out_of_service"
+
+class ItemStatus(Enum):
+    AVAILABLE = "available"
+    OUT_OF_SERVICE = "out_of_service"
+    BORROWED = "borrowed"
+    PENDING_RETURN = "pending_return"
+
+class BorrowStatus(Enum):
+    PENDING_ADMIN_APPROVAL = "pending_admin_approval"
+    APPROVED = "approved"
+    PENDING_CONDITION_CHECK = "pending_condition_check"
+    COMPLETED = "completed"
+    REJECTED = "rejected"
 
 
 class User(Base):
@@ -76,24 +90,26 @@ class Item(Base):
     borrowing_requests: Mapped[list["ItemBorrowingRequest"]] = relationship("ItemBorrowingRequest", back_populates="item", cascade="all, delete-orphan")
 
 class ItemBorrowingRequest(Base):
-    __tablename__ = "item_borrowing_request"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    item_id: Mapped[int] = mapped_column(Integer, ForeignKey("items.id"), nullable=False)
-    issued_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
-    set_return_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    item: Mapped["Item"] = relationship("Item", back_populates="borrowing_requests")
-    transactions: Mapped[list["ItemBorrowingTransaction"]] = relationship("ItemBorrowingTransaction", back_populates="request", cascade="all, delete-orphan")
+    __tablename__ = "item_borrowing_requests"
+    id : Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    item_id : Mapped[int] = mapped_column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    borrower_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    return_date : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now() + interval \'7 days\''))
+    created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    borrower : Mapped["User"] = relationship("User")
+    item : Mapped["Item"] = relationship("Item")
+    transactions : Mapped[list["ItemBorrowingTransaction"]] = relationship("ItemBorrowingTransaction", back_populates="item_borrowing_request", cascade="all, delete-orphan")
 
 class ItemBorrowingTransaction(Base):
-    __tablename__ = "item_borrowing_transaction"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    req_id: Mapped[int] = mapped_column(Integer, ForeignKey("item_borrowing_request.id"), nullable=False)
-    tstamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
-    operator_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False)
-    request: Mapped["ItemBorrowingRequest"] = relationship("ItemBorrowingRequest", back_populates="transactions")
-    operator: Mapped["User"] = relationship("User", back_populates="transactions_as_operator")
+    __tablename__ = "item_borrowing_transactions"
+    id : Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    item_borrowing_request_id : Mapped[int] = mapped_column(Integer, ForeignKey("item_borrowing_requests.id", ondelete="CASCADE"), nullable=False)
+    processed_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    operator_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    status : Mapped[BorrowStatus] = mapped_column(String, nullable=False)
+    remarks : Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    item_borrowing_request : Mapped["ItemBorrowingRequest"] = relationship("ItemBorrowingRequest", back_populates="transactions")
+    operator : Mapped["User"] = relationship("User")
 
 class Logging(Base):
     __tablename__ = "logging"

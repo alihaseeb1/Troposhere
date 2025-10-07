@@ -20,13 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade():
     conn = op.get_bind()
+    return_date_1 = (datetime.now() + timedelta(days=7)).isoformat()
+    return_date_2 = (datetime.now() + timedelta(days=3)).isoformat()
+
     conn.execute(sa.text(f"""
-        INSERT INTO item_borrowing_request (item_id, issued_date, set_return_date)
+        INSERT INTO item_borrowing_requests (item_id, borrower_id, return_date, created_at)
         VALUES
-        (1, now(), '{(datetime.now() + timedelta(days=7)).isoformat()}'),
-        (2, now(), '{(datetime.now() + timedelta(days=3)).isoformat()}')
+        (1, 1, '{return_date_1}', now()),
+        (2, 2, '{return_date_2}', now());
     """))
 
 def downgrade():
     conn = op.get_bind()
-    conn.execute(sa.text("DELETE FROM item_borrowing_request"))
+    conn.execute(sa.text("DELETE FROM item_borrowing_requests"))
