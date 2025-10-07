@@ -1,7 +1,7 @@
 # SQLAlchemy ORM Models
 
 from typing import Optional
-from sqlalchemy import ForeignKey, Integer, String, Boolean, UniqueConstraint, text, TIMESTAMP
+from sqlalchemy import JSON, ForeignKey, Integer, String, Boolean, UniqueConstraint, text, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from .database import Base
@@ -44,6 +44,9 @@ class User(Base):
     picture : Mapped[str] = mapped_column(String, nullable=True)
     global_role : Mapped[GlobalRoles] = mapped_column(Integer, nullable=False, default=GlobalRoles.USER)
     memberships : Mapped[list["Membership"]] = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
+    
+    logs: Mapped[list["Logging"]] = relationship("Logging", back_populates="user", cascade="all, delete-orphan")
+
 
 class Club(Base):
     __tablename__ = "clubs"
@@ -76,7 +79,7 @@ class Item(Base):
     club_id : Mapped[int] = mapped_column(Integer, ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True, index=True)
     is_high_risk : Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
-    status : Mapped[ItemStatus] = mapped_column(SQLEnum(ItemStatus), nullable=False, default=ItemStatus.AVAILABLE)
+    status : Mapped[ItemStatus] = mapped_column(SQLEnum(ItemStatus, name="itemstatus", create_type=True), nullable=False, server_default=text("AVAILABLE"))
     
     club: Mapped["Club"] = relationship("Club", back_populates="items")
 
@@ -100,7 +103,19 @@ class ItemBorrowingTransaction(Base):
     item_borrowing_request_id : Mapped[int] = mapped_column(Integer, ForeignKey("item_borrowing_requests.id", ondelete="CASCADE"), nullable=False)
     processed_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
     operator_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    status : Mapped[BorrowStatus] = mapped_column(SQLEnum(BorrowStatus), nullable=False)
+    status : Mapped[BorrowStatus] = mapped_column(SQLEnum(BorrowStatus, name="borrowstatus", create_type=True), nullable=False)
     remarks : Mapped[Optional[str]] = mapped_column(String, nullable=True)
     item_borrowing_request : Mapped["ItemBorrowingRequest"] = relationship("ItemBorrowingRequest", back_populates="transactions")
     operator : Mapped["User"] = relationship("User")
+
+class Logging(Base):
+    __tablename__ = "logging"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    tablename: Mapped[str] = mapped_column(String, nullable=False)
+    operation: Mapped[str] = mapped_column(String, nullable=False)
+    who: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    new_val: Mapped[dict] = mapped_column(JSON, nullable=True)
+    old_val: Mapped[dict] = mapped_column(JSON, nullable=True)
+
+    user: Mapped["User"] = relationship("User", back_populates="logs")
