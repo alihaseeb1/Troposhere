@@ -1,11 +1,13 @@
 # SQLAlchemy ORM Models
 
+from typing import Optional
 from sqlalchemy import ForeignKey, Integer, String, Boolean, UniqueConstraint, text, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from .database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
+from sqlalchemy.types import Enum as SQLEnum
 
 class GlobalRoles(Enum):
     SUPERUSER = 1 # site-wide admin
@@ -19,7 +21,16 @@ class ClubRoles(Enum):
 class ItemStatus(Enum):
     AVAILABLE = "available"
     OUT_OF_SERVICE = "out_of_service"
+    PENDING_BORROWAL = "pending_borrowal"
+    BORROWED = "borrowed"
+    PENDING_RETURN = "pending_return"
 
+class BorrowStatus(Enum):
+    PENDING_APPROVAL = "pending_approval" # for requesting item borrowal
+    APPROVED = "approved" # item borrow request approved
+    PENDING_CONDITION_CHECK = "pending_condition_check" # item returned, pending condition check
+    COMPLETED = "completed" # item returned and condition checked
+    REJECTED = "rejected" # item return request rejected (possibly due to item damage)
 
 class User(Base):
     __tablename__ = "users"
@@ -31,7 +42,7 @@ class User(Base):
     provider_id : Mapped[str] = mapped_column(String, nullable=False, unique=True)
     provider : Mapped[str] = mapped_column(String, nullable=False)
     picture : Mapped[str] = mapped_column(String, nullable=True)
-    global_role : Mapped[GlobalRoles] = mapped_column(Integer, nullable=False, default=GlobalRoles.USER.value)
+    global_role : Mapped[GlobalRoles] = mapped_column(Integer, nullable=False, default=GlobalRoles.USER)
     memberships : Mapped[list["Membership"]] = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
 
 class Club(Base):
@@ -55,10 +66,6 @@ class Membership(Base):
     user : Mapped["User"] = relationship("User", back_populates="memberships")
     club : Mapped["Club"] = relationship("Club", back_populates="memberships")
 
-    # Prevent duplicate memberships
-    __table_args__ = (
-        UniqueConstraint('user_id', 'club_id', name='uix_user_club'),
-    )
 
 # items can be without a club, and items are transferrable between clubs
 class Item(Base):
@@ -69,5 +76,31 @@ class Item(Base):
     club_id : Mapped[int] = mapped_column(Integer, ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True, index=True)
     is_high_risk : Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
-    status : Mapped[ItemStatus] = mapped_column(String, nullable=False, server_default=ItemStatus.AVAILABLE.value)
+    status : Mapped[ItemStatus] = mapped_column(SQLEnum(ItemStatus), nullable=False, default=ItemStatus.AVAILABLE)
+    
     club: Mapped["Club"] = relationship("Club", back_populates="items")
+
+
+class ItemBorrowingRequest(Base):
+    __tablename__ = "item_borrowing_requests"
+    id : Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    item_id : Mapped[int] = mapped_column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    borrower_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    return_date : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now() + interval \'7 days\''))
+    created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    
+    borrower : Mapped["User"] = relationship("User")
+    item : Mapped["Item"] = relationship("Item")
+    transactions : Mapped[list["ItemBorrowingTransaction"]] = relationship("ItemBorrowingTransaction", back_populates="item_borrowing_request", cascade="all, delete-orphan")
+
+
+class ItemBorrowingTransaction(Base):
+    __tablename__ = "item_borrowing_transactions"
+    id : Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    item_borrowing_request_id : Mapped[int] = mapped_column(Integer, ForeignKey("item_borrowing_requests.id", ondelete="CASCADE"), nullable=False)
+    processed_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    operator_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    status : Mapped[BorrowStatus] = mapped_column(SQLEnum(BorrowStatus), nullable=False)
+    remarks : Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    item_borrowing_request : Mapped["ItemBorrowingRequest"] = relationship("ItemBorrowingRequest", back_populates="transactions")
+    operator : Mapped["User"] = relationship("User")

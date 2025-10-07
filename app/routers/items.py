@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from sqlalchemy import Enum
 from ..dependencies import require_global_role, require_club_role, is_item_exist, is_club_exist
 from .. import models
 from .. import schemas
@@ -71,6 +72,8 @@ def update_item(new_item : schemas.ItemUpdate,
              db: Session = Depends(get_db)):
     
     for field, value in new_item.model_dump(exclude_unset=True).items():
+        if isinstance(value, Enum):
+            value = value.value
         setattr(item, field, value)
 
     db.commit()
