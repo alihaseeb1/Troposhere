@@ -20,11 +20,9 @@ def upgrade() -> None:
         'item_borrowing_request',
         sa.Column('id', sa.Integer, primary_key=True),
         sa.Column('item_id', sa.Integer, sa.ForeignKey('items.id'), nullable=False),
-        sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False),
         sa.Column('issued_date', sa.DateTime, nullable=False, server_default=sa.func.now()),
         sa.Column('set_return_date', sa.DateTime, nullable=False)
     )
-
 
 def downgrade() -> None:
     """Downgrade schema."""
