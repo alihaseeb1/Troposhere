@@ -97,3 +97,25 @@ class ItemUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[ItemStatus] = None
     is_high_risk: Optional[bool] = None
+
+class ItemBorrowingRequest(BaseModel):
+    item_id: int
+    set_return_date: datetime
+
+class ItemBorrowingRequestOut(ItemBorrowingRequest):
+    id: int
+    model_config = {
+        "from_attributes": True
+    }
+
+class ItemBorrowingTransaction(BaseModel):
+    req_id: int
+    operator_id: int
+    status: str
+
+class LoggingBase(BaseModel):
+    tablename: str
+    operation: str
+    who: int
+    new_val: dict
+    old_val: dict
