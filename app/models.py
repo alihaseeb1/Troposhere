@@ -33,6 +33,8 @@ class User(Base):
     picture : Mapped[str] = mapped_column(String, nullable=True)
     global_role : Mapped[GlobalRoles] = mapped_column(Integer, nullable=False, default=GlobalRoles.USER.value)
     memberships : Mapped[list["Membership"]] = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
+    transactions_as_operator: Mapped[list["ItemBorrowingTransaction"]] = relationship("ItemBorrowingTransaction",back_populates="operator",cascade="all, delete-orphan")
+    logs: Mapped[list["Logging"]] = relationship("Logging", back_populates="user", cascade="all, delete-orphan")
 
 class Club(Base):
     __tablename__ = "clubs"
