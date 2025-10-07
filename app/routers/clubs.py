@@ -45,6 +45,20 @@ def get_club_members(club_id : int,
 
     return members
 
+# Get a single user membership from a club
+@router.get("/{club_id}/members/{user_id}", response_model=schemas.ClubMembersOut)
+def get_club_members(club_id : int, 
+                     user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
+                     db: Session = Depends(get_db)):
+    
+    member = db.query(models.User, models.Membership).join(
+        models.Membership, models.User.id==models.Membership.user_id
+        ).filter(
+            models.Membership.club_id == club_id and models.User.id == user.id
+            ).first()
+
+    return member
+
 
 # Modify user roles or add a user to a club
 @router.put("/{club_id}/roles/{user_id}", response_model=schemas.MembershipOut)

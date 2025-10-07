@@ -1,7 +1,7 @@
 # this will be holding pydantic models for request and response bodies
 
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 from datetime import datetime
 from .models import ClubRoles, ItemStatus
 
@@ -55,12 +55,17 @@ class MembershipIn(BaseModel):
 class MembershipOut(BaseModel):
     user_id : int
     club_id : int
-    role : int
+    role : ClubRoles
     joined_at : datetime
 
     model_config = {
         "from_attributes": True
     }
+
+    @field_serializer("role")
+    def serialize_role(self, role: ClubRoles, _info):
+        return role.name  # or role.value if you prefer
+
 
 class ClubMembersOut(BaseModel):
     User: UserOut
