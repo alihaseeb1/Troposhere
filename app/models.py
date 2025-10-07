@@ -1,6 +1,6 @@
 # SQLAlchemy ORM Models
 
-from sqlalchemy import ForeignKey, Integer, String, Boolean, UniqueConstraint, text, TIMESTAMP
+from sqlalchemy import ForeignKey, Integer, String, Boolean, UniqueConstraint, text, TIMESTAMP, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from .database import Base
@@ -71,3 +71,35 @@ class Item(Base):
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
     status : Mapped[ItemStatus] = mapped_column(String, nullable=False, server_default=ItemStatus.AVAILABLE.value)
     club: Mapped["Club"] = relationship("Club", back_populates="items")
+    borrowing_requests: Mapped[list["ItemBorrowingRequest"]] = relationship("ItemBorrowingRequest", back_populates="item", cascade="all, delete-orphan")
+
+class ItemBorrowingRequest(Base):
+    __tablename__ = "item_borrowing_request"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    item_id: Mapped[int] = mapped_column(Integer, ForeignKey("items.id"), nullable=False)
+    issued_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+    set_return_date: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    item: Mapped["Item"] = relationship("Item", back_populates="borrowing_requests")
+    transactions: Mapped[list["ItemBorrowingTransaction"]] = relationship("ItemBorrowingTransaction", back_populates="request", cascade="all, delete-orphan")
+
+class ItemBorrowingTransaction(Base):
+    __tablename__ = "item_borrowing_transaction"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    req_id: Mapped[int] = mapped_column(Integer, ForeignKey("item_borrowing_request.id"), nullable=False)
+    tstamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+    operator_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    request: Mapped["ItemBorrowingRequest"] = relationship("ItemBorrowingRequest", back_populates="transactions")
+    operator: Mapped["User"] = relationship("User", back_populates="transactions_as_operator")
+
+class Logging(Base):
+    __tablename__ = "logging"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tstamp: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+    tablename: Mapped[str] = mapped_column(String, nullable=False)
+    operation: Mapped[str] = mapped_column(String, nullable=False)
+    who: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
+    new_val: Mapped[dict] = mapped_column(JSON, nullable=False)
+    old_val: Mapped[dict] = mapped_column(JSON, nullable=False)
+    user: Mapped["User"] = relationship("User", back_populates="logs")
