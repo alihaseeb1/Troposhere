@@ -3,7 +3,7 @@
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 from datetime import datetime
-from .models import ClubRoles, ItemStatus
+from .models import ClubRoles, ItemStatus, BorrowStatus
 
 class User(BaseModel):
     email : EmailStr
@@ -98,24 +98,27 @@ class ItemUpdate(BaseModel):
     status: Optional[ItemStatus] = None
     is_high_risk: Optional[bool] = None
 
-class ItemBorrowingRequest(BaseModel):
-    item_id: int
-    set_return_date: datetime
+class BorrowItemIn(BaseModel):
+    return_date : Optional[datetime] = None
 
-class ItemBorrowingRequestOut(ItemBorrowingRequest):
-    id: int
+class BorrowItemRequestOut(BaseModel):
+    id : int
+    item_id : int
+    borrower_id : int
+    return_date : datetime
+    created_at : datetime
+
+class BorrowItemTransaction(BaseModel):
+
+    status : BorrowStatus
+    remarks : Optional[str] = None
+    operator_id : Optional[int] = None
+
+
+class BorrowItemOut(BaseModel):
+    ItemBorrowingRequest : BorrowItemRequestOut
+    ItemBorrowingTransaction : BorrowItemTransaction
+
     model_config = {
         "from_attributes": True
     }
-
-class ItemBorrowingTransaction(BaseModel):
-    req_id: int
-    operator_id: int
-    status: str
-
-class LoggingBase(BaseModel):
-    tablename: str
-    operation: str
-    who: int
-    new_val: dict
-    old_val: dict
