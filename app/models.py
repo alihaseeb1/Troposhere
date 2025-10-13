@@ -19,11 +19,8 @@ class ClubRoles(Enum):
     MEMBER = 1
 
 class ItemStatus(Enum):
-    AVAILABLE = "available"
-    OUT_OF_SERVICE = "out_of_service"
-    PENDING_BORROWAL = "pending_borrowal"
-    BORROWED = "borrowed"
-    PENDING_RETURN = "pending_return"
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
 
 class BorrowStatus(Enum):
     PENDING_APPROVAL = "pending_approval" # for requesting item borrowal
@@ -79,7 +76,8 @@ class Item(Base):
     club_id : Mapped[int] = mapped_column(Integer, ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True, index=True)
     is_high_risk : Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
-    status : Mapped[ItemStatus] = mapped_column(SQLEnum(ItemStatus, name="itemstatus", create_type=True), nullable=False, server_default=text("AVAILABLE"))
+    status : Mapped[ItemStatus] = mapped_column(SQLEnum(ItemStatus, name="itemstatus", create_type=True), nullable=False, default=ItemStatus.AVAILABLE)
+    qr_code: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     
     club: Mapped["Club"] = relationship("Club", back_populates="items")
 
@@ -118,3 +116,4 @@ class Logging(Base):
     old_val: Mapped[dict] = mapped_column(JSON, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="logs")
+

@@ -122,3 +122,7 @@ class BorrowItemOut(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+class BorrowByQRIn(BaseModel):
+    qr_code: str
+    return_date: Optional[datetime] = None
