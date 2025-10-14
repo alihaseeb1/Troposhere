@@ -136,3 +136,19 @@ class ItemBorrowingTransactionOut(BaseModel):
     status: str
 class ApproveIn(BaseModel):
     action: str 
+
+class ClubItemSummaryOut(BaseModel):
+    id: int
+    name: str
+    status: str
+    qr_code: str
+    description: Optional[str] = None
+
+class PendingApprovalOut(BaseModel):
+    transaction_id: int
+    item_id: int
+    item_name: str
+    borrower_name: str
+    status: str
+    requested_at: Optional[datetime] = None
+    message: str
