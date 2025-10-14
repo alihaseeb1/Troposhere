@@ -20,6 +20,7 @@ def return_item_by_qr(
     db: Session = Depends(get_db),
 ):
     try:
+        logging.info(f"Return request received: club_id={club_id}, user_id={user.id}, qr_code={body.qr_code}")
         item = (
             db.execute(
                 select(models.Item)
@@ -27,6 +28,7 @@ def return_item_by_qr(
                 .with_for_update()
             ).scalars().first()
         )
+        logging.info(f"Item fetched for return: {item.id, item.name}")
 
         if not item:
             raise HTTPException(status_code=400, detail="Item with this QR code not found")
@@ -53,6 +55,7 @@ def return_item_by_qr(
                 .where(models.ItemBorrowingRequest.item_id == item.id)
                 .order_by(desc(models.ItemBorrowingTransaction.processed_at))
         )).scalars().first()
+        logging.info(f"Borrowing transaction fetched for return: {borrowing_transaction.id, borrowing_transaction.status}")
 
         if borrowing_transaction.status != models.BorrowStatus.APPROVED:
             raise HTTPException(status_code=400, detail="Item borrowing not approved yet")
