@@ -116,4 +116,3 @@ class Logging(Base):
     old_val: Mapped[dict] = mapped_column(JSON, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="logs")
-

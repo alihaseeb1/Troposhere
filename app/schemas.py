@@ -126,3 +126,6 @@ class BorrowItemOut(BaseModel):
 class BorrowByQRIn(BaseModel):
     qr_code: str
     return_date: Optional[datetime] = None
+
+class ReturnByQRIn(BaseModel):
+    qr_code: str

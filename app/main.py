@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from .routers import login, clubs, items, borrow
+from .routers import login, clubs, items, borrow, returns
 from .database import Base, engine
 from starlette.middleware.sessions import SessionMiddleware
 from .config import settings
@@ -12,6 +12,7 @@ app.include_router(login.router)
 app.include_router(clubs.router)
 app.include_router(items.router)
 app.include_router(borrow.router)
+app.include_router(returns.router)
 # we don't need this as alembic will take care of it
 # Base.metadata.create_all(bind=engine)
 setup_logging()
