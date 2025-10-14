@@ -129,3 +129,10 @@ class BorrowByQRIn(BaseModel):
 
 class ReturnByQRIn(BaseModel):
     qr_code: str
+
+class ItemBorrowingTransactionOut(BaseModel):
+    message: str
+    item_name: str
+    status: str
+class ApproveIn(BaseModel):
+    action: str 
