@@ -116,8 +116,8 @@ class BorrowItemTransaction(BaseModel):
 
 
 class BorrowItemOut(BaseModel):
-    ItemBorrowingRequest : BorrowItemRequestOut
-    ItemBorrowingTransaction : BorrowItemTransaction
+    message : str
+    item_name: str
 
     model_config = {
         "from_attributes": True
