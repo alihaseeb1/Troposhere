@@ -36,6 +36,7 @@ def borrow_item_by_qr(
     club_id: int,
     body: schemas.BorrowByQRIn,
     user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    club: models.Club = Depends(is_club_exist),
     db: Session = Depends(get_db),
 ):
     try:
@@ -54,6 +55,17 @@ def borrow_item_by_qr(
             raise HTTPException(status_code=400, detail="Item is not available for borrowing")
         if body.return_date and body.return_date <= datetime.now(timezone.utc):
             raise HTTPException(status_code=400, detail="Return date must be in the future")
+        
+        membership = (
+            db.query(models.Membership)
+            .filter(
+                models.Membership.user_id == user.id,
+                models.Membership.club_id == club.id,
+            )
+            .first()
+        )
+        if not membership:
+            raise HTTPException(status_code=403)
 
         borrowing_request = models.ItemBorrowingRequest(
             item_id=item.id,
