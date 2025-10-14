@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Query
-from sqlalchemy import Enum, select, desc, func
+from sqlalchemy import Enum, select, func
 from ..dependencies import require_global_role, is_item_exist, is_club_exist, require_club_role
 from .. import models
 from .. import schemas
