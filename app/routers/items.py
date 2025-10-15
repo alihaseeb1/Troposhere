@@ -176,7 +176,7 @@ def approve_item_transaction(
 
             if role_value != models.ClubRoles.MODERATOR.value:
                 raise HTTPException(
-                    status_code=403,
+                    status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only moderators or superusers can approve transactions."
                 )
 
@@ -305,7 +305,9 @@ def get_latest_pending_transactions(
     logging.info(f"Fetching latest pending approvals for club_id={club_id}, skip={skip}, limit={limit}")
 
     try:
-        if user.global_role != models.GlobalRoles.SUPERUSER:
+        if user.global_role == models.GlobalRoles.SUPERUSER.value:
+            logging.debug("Superuser detected — bypassing club role check.")
+        else:
             membership = (
                 db.query(models.Membership)
                 .filter(
@@ -314,12 +316,16 @@ def get_latest_pending_transactions(
                 )
                 .first()
             )
-            if not membership:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="You are not a member of this club.")
 
             role_value = membership.role.value if hasattr(membership.role, "value") else membership.role
-            if role_value < models.ClubRoles.MODERATOR.value:
-                raise HTTPException(status_code=403, detail="Only moderators can view approval requests.")
+            logging.debug(f"User membership role in club {club_id}: {role_value}")
+            if role_value != models.ClubRoles.MODERATOR.value:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only moderators or superusers can approve transactions."
+                )
+
+            logging.debug(f"Membership verified: Role {role_value} (Moderator)")
 
         subq = (
             select(
