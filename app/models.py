@@ -10,20 +10,17 @@ from enum import Enum
 from sqlalchemy.types import Enum as SQLEnum
 
 class GlobalRoles(Enum):
-    SUPERUSER = 1 # site-wide admin
-    USER = 0
+    SUPERUSER = 1 # can do everything
+    USER = 0 # regular user and moderator and admin
 
 class ClubRoles(Enum):
-    ADMIN = 3
-    MODERATOR = 2
+    ADMIN = 3 # can add/remove members, change roles, approve borrow requests, add moderators, manage club items
+    MODERATOR = 2 # can approve transaction request, add member to club
     MEMBER = 1
 
 class ItemStatus(Enum):
-    AVAILABLE = "available"
-    OUT_OF_SERVICE = "out_of_service"
-    PENDING_BORROWAL = "pending_borrowal"
-    BORROWED = "borrowed"
-    PENDING_RETURN = "pending_return"
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
 
 class BorrowStatus(Enum):
     PENDING_APPROVAL = "pending_approval" # for requesting item borrowal
@@ -79,7 +76,8 @@ class Item(Base):
     club_id : Mapped[int] = mapped_column(Integer, ForeignKey("clubs.id", ondelete="SET NULL"), nullable=True, index=True)
     is_high_risk : Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
-    status : Mapped[ItemStatus] = mapped_column(SQLEnum(ItemStatus, name="itemstatus", create_type=True), nullable=False, server_default=text("AVAILABLE"))
+    status : Mapped[ItemStatus] = mapped_column(SQLEnum(ItemStatus, name="itemstatus", create_type=True), nullable=False, default=ItemStatus.AVAILABLE)
+    qr_code: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     
     club: Mapped["Club"] = relationship("Club", back_populates="items")
 

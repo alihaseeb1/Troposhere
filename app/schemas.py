@@ -1,6 +1,6 @@
 # this will be holding pydantic models for request and response bodies
 
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 from datetime import datetime
 from .models import ClubRoles, ItemStatus, BorrowStatus
@@ -78,7 +78,8 @@ class Item(BaseModel):
     name : str
     description : Optional[str] = ""
     is_high_risk : Optional[bool] = False
-    status : Optional[str] = ItemStatus.AVAILABLE
+    status : Optional[ItemStatus] = ItemStatus.AVAILABLE
+    qr_code: str
 
 class ItemOut(Item):
     id : int
@@ -97,6 +98,7 @@ class ItemUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[ItemStatus] = None
     is_high_risk: Optional[bool] = None
+    qr_code: str
 
 class BorrowItemIn(BaseModel):
     return_date : Optional[datetime] = None
@@ -116,9 +118,122 @@ class BorrowItemTransaction(BaseModel):
 
 
 class BorrowItemOut(BaseModel):
-    ItemBorrowingRequest : BorrowItemRequestOut
-    ItemBorrowingTransaction : BorrowItemTransaction
+    message : str
+    item_name: str
 
     model_config = {
         "from_attributes": True
     }
+
+class BorrowByQRIn(BaseModel):
+    qr_code: str
+    return_date: Optional[datetime] = None
+
+class ReturnByQRIn(BaseModel):
+    qr_code: str
+
+class ItemBorrowingTransactionOut(BaseModel):
+    message: str
+    item_name: str
+    status: str
+class ApproveIn(BaseModel):
+    action: str 
+
+class ClubItemSummaryOut(BaseModel):
+    id: int
+    name: str
+    status: str
+    qr_code: str
+    description: Optional[str] = None
+
+class PendingApprovalOut(BaseModel):
+    transaction_id: int
+    item_id: int
+    item_name: str
+    borrower_name: str
+    status: str
+    requested_at: Optional[datetime] = None
+    message: str
+
+class BorrowHistoryItem(BaseModel):
+    transaction_id: int
+    item_name: str
+    status: str
+    borrow_date: Optional[datetime] = None
+    return_date: Optional[datetime] = None
+
+class BorrowHistoryResponse(BaseModel):
+    message: str
+    data: List[BorrowHistoryItem]
+
+class ClubAdminItem(BaseModel):
+    user_id: int
+    name: str
+    email: str
+
+class ClubAdminResponse(BaseModel):
+    message: str
+    data: List[ClubAdminItem]
+
+class UserClubItem(BaseModel):
+    club_id: int
+    club_name: str
+
+class UserClubResponse(BaseModel):
+    message: str
+    data: List[UserClubItem]
+
+class UserInfo(BaseModel):
+    name: str
+    email: str
+
+class UserInfoResponse(BaseModel):
+    message: str
+    data: UserInfo
+
+class ClubSimpleDetailsItem(BaseModel):
+    name: str
+    description: Optional[str] = None
+    total_members: int
+
+class ClubSimpleDetailsResponse(BaseModel):
+    message: str
+    data: ClubSimpleDetailsItem
+
+
+class AllClubsItem(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+
+class AllClubsResponse(BaseModel):
+    message: str
+    data: List[AllClubsItem]
+
+class ItemSearchOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    status: str
+    is_high_risk: bool
+
+class ItemSearchResponse(BaseModel):
+    message: str
+    data: List[ItemSearchOut]
+
+class ClubSimpleOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+
+class ClubMembersOut(BaseModel):
+    user_id: int
+    name: str
+    email: str
+
+
+class ClubMembersResponse(BaseModel):
+    message: str
+    total_members: int
+    data: list[ClubMembersOut]

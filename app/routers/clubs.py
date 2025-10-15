@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -6,15 +5,47 @@ from ..dependencies import require_global_role, require_club_role, is_club_exist
 from .. import models
 from .. import schemas
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from ..database import get_db
 from fastapi import status
-router = APIRouter(prefix="/clubs", tags=["Club Management"])
+import logging
 
+
+router = APIRouter(prefix="/clubs", tags=["Club Management"])
 
 def is_existing_membership(user_id: int, club_id: int, db: Session):
     return db.query(models.Membership).filter(models.Membership.user_id == user_id, models.Membership.club_id == club_id).first()
 
-# Create a club
+# search clubs by name 
+@router.get("/search", response_model=list[schemas.ClubSimpleOut], status_code=status.HTTP_200_OK)
+def search_clubs_by_name(
+    query: str = "",
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.USER.value)),
+    db: Session = Depends(get_db)
+):
+    logging.info(f"Searching clubs with query: '{query}'")
+    clubs_query = db.query(models.Club)
+
+    if query.strip():
+        clubs_query = clubs_query.filter(
+            func.lower(models.Club.name).like(f"%{query.lower()}%")
+        )
+
+    clubs = clubs_query.order_by(models.Club.id.asc()).all()
+
+    if not clubs:
+        return []
+
+    return [
+        schemas.ClubSimpleOut(
+            id=club.id,
+            name=club.name,
+            description=club.description
+        )
+        for club in clubs
+    ]
+
+# Create a club (superuser only)
 @router.post("/", response_model=schemas.ClubOut, status_code=status.HTTP_201_CREATED)
 def create_club(club : schemas.Club, user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
     new_club = models.Club(name=club.name, description=club.description)
@@ -25,7 +56,7 @@ def create_club(club : schemas.Club, user: models.User = Depends(require_global_
 
     return new_club
 
-# delete an existing club
+# delete an existing club (superuser only)
 @router.delete("/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_club(user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), 
                 db: Session = Depends(get_db), 
@@ -36,14 +67,42 @@ def delete_club(user: models.User = Depends(require_global_role(role=models.Glob
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # get all club members
-@router.get("/{club_id}/members", response_model=list[schemas.ClubMembersOut])
-def get_club_members(club_id : int, 
-                     user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
-                     db: Session = Depends(get_db)):
-    
-    members = db.query(models.User, models.Membership).join(models.Membership, models.User.id==models.Membership.user_id).filter(models.Membership.club_id == club_id).all()
+@router.get("/{club_id}/members", response_model=schemas.ClubMembersResponse)
+def get_club_members(
+    club_id: int,
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    db: Session = Depends(get_db)
+):
+    query = (
+        db.query(models.User)
+        .join(models.Membership, models.User.id == models.Membership.user_id)
+        .filter(models.Membership.club_id == club_id)
+    )
 
-    return members
+    total_members = query.count()
+    members = query.all()
+
+    if total_members == 0:
+        return schemas.ClubMembersResponse(
+            message="No members found in this club.",
+            total_members=0,
+            data=[]
+        )
+
+    members_data = [
+        schemas.ClubMembersOut(
+            user_id=member.id,
+            name=member.name,
+            email=member.email
+        )
+        for member in members
+    ]
+
+    return schemas.ClubMembersResponse(
+        message="Successfully retrieved club members.",
+        total_members=total_members,
+        data=members_data
+    )
 
 # Get a single user membership from a club
 @router.get("/{club_id}/members/{user_id}", response_model=schemas.ClubMembersOut)
@@ -59,8 +118,8 @@ def get_club_members(club_id : int,
 
     return member
 
-
 # Modify user roles or add a user to a club
+# Moderator can only add members and admin can add moderators and members and the superuser can add any role
 @router.put("/{club_id}/roles/{user_id}", response_model=schemas.MembershipOut)
 def set_roles(club_id: int, 
               user_id: int, set_role: schemas.MembershipIn, 
@@ -113,22 +172,28 @@ def remove_member(club_id: int, user_id: int,
         db.delete(existing_member)
         db.commit()
         return Response(status.HTTP_204_NO_CONTENT)
-    
+
+# admin can add the item belongs to their club or superuser can add item in any club
 @router.post("/{club_id}/items", status_code=status.HTTP_201_CREATED, response_model=schemas.ItemOut, tags=["Item Management"])
 def add_item(club_id : int, 
              item : schemas.Item, 
              club : models.Club = Depends(is_club_exist),
              user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value)), 
              db: Session = Depends(get_db)):
-    
     new_item = models.Item(**item.model_dump(), club_id = club_id)
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
 
-    return new_item
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content={
+            "message": "Successfully added item",
+            "data": jsonable_encoder(new_item)
+        }
+    )
 
-# Update an item in a club (requires ADMIN role) 
+# Only admin/superuser can update an item in a club
 @router.put("/{club_id}/items/{item_id}", status_code=status.HTTP_200_OK, response_model=schemas.ItemOut, tags =["Item Management"])
 def update_item(club_id : int, 
                 new_item : schemas.ItemUpdate, 
@@ -145,4 +210,60 @@ def update_item(club_id : int,
     db.commit()
     db.refresh(item)
 
-    return item     
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "Successfully updated item",
+            "data": jsonable_encoder(item)
+        }
+    )   
+
+@router.get("/{club_id}/details", response_model=schemas.ClubSimpleDetailsResponse, status_code=status.HTTP_200_OK)
+def get_club_details(
+    club_id: int,
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    club: models.Club = Depends(is_club_exist),
+    db: Session = Depends(get_db)
+):
+    member_count = (
+        db.query(models.Membership)
+        .filter(models.Membership.club_id == club_id)
+        .count()
+    )
+
+    return schemas.ClubSimpleDetailsResponse(
+        message="Successfully retrieved club details.",
+        data=schemas.ClubSimpleDetailsItem(
+            name=club.name,
+            description=club.description,
+            total_members=member_count
+        )
+    )
+
+@router.get("/", response_model=schemas.AllClubsResponse, status_code=status.HTTP_200_OK)
+def get_all_clubs(
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)),
+    db: Session = Depends(get_db)
+):
+    clubs = db.query(models.Club).order_by(models.Club.id.asc()).all()
+
+    if not clubs:
+        return schemas.AllClubsResponse(
+            message="No clubs found.",
+            data=[]
+        )
+
+    results = [
+        schemas.AllClubsItem(
+            id=club.id,
+            name=club.name,
+            description=club.description,
+            created_at=club.created_at
+        )
+        for club in clubs
+    ]
+
+    return schemas.AllClubsResponse(
+        message="Successfully retrieved all clubs.",
+        data=results
+    )

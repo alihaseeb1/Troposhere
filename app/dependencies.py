@@ -74,3 +74,38 @@ def is_item_exist(item_id : int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item does not exist")
     return item
+
+def require_member_role():
+    def member_checker(
+        club_id: int,
+        current_user: models.User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+        club: models.Club = Depends(is_club_exist)
+    ):
+        if current_user.global_role == models.GlobalRoles.SUPERUSER.value:
+            return current_user
+
+        membership = (
+            db.query(models.Membership)
+            .filter(
+                models.Membership.user_id == current_user.id,
+                models.Membership.club_id == club_id
+            )
+            .first()
+        )
+
+        if not membership:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not a member of this club."
+            )
+        
+        if membership.role != models.ClubRoles.MEMBER.value:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only members can perform this action."
+            )
+
+        return current_user
+
+    return member_checker
