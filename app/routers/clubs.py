@@ -14,7 +14,7 @@ router = APIRouter(prefix="/clubs", tags=["Club Management"])
 def is_existing_membership(user_id: int, club_id: int, db: Session):
     return db.query(models.Membership).filter(models.Membership.user_id == user_id, models.Membership.club_id == club_id).first()
 
-# Create a club
+# Create a club (superuser only)
 @router.post("/", response_model=schemas.ClubOut, status_code=status.HTTP_201_CREATED)
 def create_club(club : schemas.Club, user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
     new_club = models.Club(name=club.name, description=club.description)
@@ -25,7 +25,7 @@ def create_club(club : schemas.Club, user: models.User = Depends(require_global_
 
     return new_club
 
-# delete an existing club
+# delete an existing club (superuser only)
 @router.delete("/{club_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_club(user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), 
                 db: Session = Depends(get_db), 
@@ -59,8 +59,8 @@ def get_club_members(club_id : int,
 
     return member
 
-
 # Modify user roles or add a user to a club
+# Moderator can only add members and admin can add moderators and members and the superuser can add any role
 @router.put("/{club_id}/roles/{user_id}", response_model=schemas.MembershipOut)
 def set_roles(club_id: int, 
               user_id: int, set_role: schemas.MembershipIn, 
@@ -113,31 +113,62 @@ def remove_member(club_id: int, user_id: int,
         db.delete(existing_member)
         db.commit()
         return Response(status.HTTP_204_NO_CONTENT)
-    
+
+# admin can add the item belongs to their club or superuser can add item in any club
 @router.post("/{club_id}/items", status_code=status.HTTP_201_CREATED, response_model=schemas.ItemOut, tags=["Item Management"])
 def add_item(club_id : int, 
              item : schemas.Item, 
              club : models.Club = Depends(is_club_exist),
-             user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value)), 
+             user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
              db: Session = Depends(get_db)):
     
+    if user.global_role != models.GlobalRoles.SUPERUSER.value:
+        membership = db.query(models.Membership).filter_by(
+            user_id=user.id,
+            club_id=club_id
+        ).first()
+
+        if not membership:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        
+        if membership.role < models.ClubRoles.ADMIN.value:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions to add item to this club")
+        
     new_item = models.Item(**item.model_dump(), club_id = club_id)
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
 
-    return new_item
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content={
+            "message": "Successfully added item",
+            "data": jsonable_encoder(new_item)
+        }
+    )
 
-# Update an item in a club (requires ADMIN role) 
+# Only admin/superuser can update an item in a club
 @router.put("/{club_id}/items/{item_id}", status_code=status.HTTP_200_OK, response_model=schemas.ItemOut, tags =["Item Management"])
 def update_item(club_id : int, 
                 new_item : schemas.ItemUpdate, 
-                user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value)), 
+                user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
                 item : models.Item = Depends(is_item_exist),
                 db: Session = Depends(get_db)):
     
     if item.club_id != club_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item does not belong to this club")
+    
+    if user.global_role != models.GlobalRoles.SUPERUSER.value:
+        membership = db.query(models.Membership).filter_by(
+            user_id=user.id,
+            club_id=club_id
+        ).first()
+
+        if not membership:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        
+        if membership.role < models.ClubRoles.ADMIN.value:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions to add item to this club")
     
     for field, value in new_item.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
@@ -145,4 +176,10 @@ def update_item(club_id : int,
     db.commit()
     db.refresh(item)
 
-    return item     
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "Successfully updated item",
+            "data": jsonable_encoder(item)
+        }
+    )   

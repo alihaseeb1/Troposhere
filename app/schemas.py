@@ -78,7 +78,8 @@ class Item(BaseModel):
     name : str
     description : Optional[str] = ""
     is_high_risk : Optional[bool] = False
-    status : Optional[str] = ItemStatus.AVAILABLE
+    status : Optional[ItemStatus] = ItemStatus.AVAILABLE
+    qr_code: str
 
 class ItemOut(Item):
     id : int
@@ -97,6 +98,7 @@ class ItemUpdate(BaseModel):
     description: Optional[str] = None
     status: Optional[ItemStatus] = None
     is_high_risk: Optional[bool] = None
+    qr_code: str
 
 class BorrowItemIn(BaseModel):
     return_date : Optional[datetime] = None

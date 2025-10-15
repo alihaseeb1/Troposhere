@@ -10,12 +10,12 @@ from enum import Enum
 from sqlalchemy.types import Enum as SQLEnum
 
 class GlobalRoles(Enum):
-    SUPERUSER = 1 # admin 
-    USER = 0 # regular user and moderator
+    SUPERUSER = 1 # can do everything
+    USER = 0 # regular user and moderator and admin
 
 class ClubRoles(Enum):
     ADMIN = 3 # can add/remove members, change roles, approve borrow requests, add moderators, manage club items
-    MODERATOR = 2 # can approve borrow requests, manage club items, club members
+    MODERATOR = 2 # can approve transaction request, add member to club
     MEMBER = 1
 
 class ItemStatus(Enum):
