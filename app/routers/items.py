@@ -62,7 +62,7 @@ def change_ownership(to_club: schemas.ItemTransferIn,
 
     return item
 
-# Update an item without a club (requires SUPERUSER role) 
+# Superusers can update an item without a club 
 @router.put("/{item_id}", status_code=status.HTTP_200_OK, response_model=schemas.ItemOut)
 def update_item(new_item : schemas.ItemUpdate, 
              user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), 
