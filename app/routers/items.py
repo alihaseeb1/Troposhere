@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Query
-from sqlalchemy import Enum, select, func
+from sqlalchemy import Enum, select, func, or_
 from ..dependencies import require_global_role, is_item_exist, is_club_exist, require_club_role
 from .. import models
 from .. import schemas
@@ -24,6 +24,50 @@ def add_item(item : schemas.Item,
 
     return new_item
 
+@router.get("/search", response_model=schemas.ItemSearchResponse, status_code=status.HTTP_200_OK)
+def search_items_in_club(
+    club_id: int = Query(..., description="Club ID to search items in"),
+    query: str = Query(..., description="Search keyword (matches name or description)"),
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    club: models.Club = Depends(is_club_exist),
+    db: Session = Depends(get_db),
+):
+    logging.info(f"Searching items in club_id={club_id} with query='{query}'")
+
+    items = (
+        db.query(models.Item)
+        .filter(
+            models.Item.club_id == club_id,
+            or_(
+                models.Item.name.ilike(f"%{query}%"),
+                models.Item.description.ilike(f"%{query}%")
+            )
+        )
+        .order_by(models.Item.id.asc())
+        .all()
+    )
+
+    if not items:
+        return schemas.ItemSearchResponse(
+            message="No matching items found.",
+            data=[]
+        )
+
+    results = [
+        schemas.ItemSearchOut(
+            id=item.id,
+            name=item.name,
+            description=item.description,
+            status=item.status.value if hasattr(item.status, "value") else item.status,
+            is_high_risk=item.is_high_risk
+        )
+        for item in items
+    ]
+
+    return schemas.ItemSearchResponse(
+        message="Successfully retrieved search results.",
+        data=results
+    )
 
 # Delete an item
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -220,7 +264,7 @@ def get_items_in_club(
     items = db.execute(items_query).scalars().all()
 
     if not items:
-        raise HTTPException(status_code=404, detail="No items found for this club")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No items found for this club")
 
     item_list = []
     for item in items:

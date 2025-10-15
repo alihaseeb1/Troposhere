@@ -210,3 +210,14 @@ class AllClubsItem(BaseModel):
 class AllClubsResponse(BaseModel):
     message: str
     data: List[AllClubsItem]
+
+class ItemSearchOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    status: str
+    is_high_risk: bool
+
+class ItemSearchResponse(BaseModel):
+    message: str
+    data: List[ItemSearchOut]
