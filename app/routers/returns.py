@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from ..dependencies import  require_club_role, is_club_exist
+from ..dependencies import  require_club_role, is_club_exist, require_member_role
 from .. import models
 from .. import schemas
 from sqlalchemy.orm import Session
@@ -16,7 +16,7 @@ def return_item_by_qr(
     club_id: int,
     body: schemas.ReturnByQRIn,
     club: models.Club = Depends(is_club_exist),
-    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    user: models.User = Depends(require_member_role()),
     db: Session = Depends(get_db),
 ):
     try:
@@ -31,22 +31,11 @@ def return_item_by_qr(
         logging.info(f"Item fetched for return: {item.id, item.name}")
 
         if not item:
-            raise HTTPException(status_code=400, detail="Item with this QR code not found")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item with this QR code not found")
         if item.club_id != club_id:
-            raise HTTPException(status_code=400, detail="Item does not belong to this club")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item does not belong to this club")
         if item.status != models.ItemStatus.UNAVAILABLE:
-            raise HTTPException(status_code=400, detail="Item is not currently borrowed")
-        
-        membership = (
-            db.query(models.Membership)
-            .filter(
-                models.Membership.user_id == user.id,
-                models.Membership.club_id == club.id,
-            )
-            .first()
-        )
-        if not membership:
-            raise HTTPException(status_code=403, detail="You are not a member of this club")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item is not currently borrowed")
 
         borrowing_transaction= (
             db.execute(
@@ -58,10 +47,10 @@ def return_item_by_qr(
         logging.info(f"Borrowing transaction fetched for return: {borrowing_transaction.id, borrowing_transaction.status}")
 
         if borrowing_transaction.status != models.BorrowStatus.APPROVED:
-            raise HTTPException(status_code=400, detail="Item borrowing not approved yet")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item borrowing not approved yet")
         
         if borrowing_transaction.item_borrowing_request.borrower_id != user.id:
-            raise HTTPException(status_code=403, detail="You do not have permission to return this item")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
         
         return_status = (models.BorrowStatus.PENDING_CONDITION_CHECK if item.is_high_risk 
                          else models.BorrowStatus.COMPLETED)
