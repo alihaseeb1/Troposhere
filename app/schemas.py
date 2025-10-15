@@ -226,3 +226,14 @@ class ClubSimpleOut(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+
+class ClubMembersOut(BaseModel):
+    user_id: int
+    name: str
+    email: str
+
+
+class ClubMembersResponse(BaseModel):
+    message: str
+    total_members: int
+    data: list[ClubMembersOut]

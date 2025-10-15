@@ -67,14 +67,42 @@ def delete_club(user: models.User = Depends(require_global_role(role=models.Glob
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # get all club members
-@router.get("/{club_id}/members", response_model=list[schemas.ClubMembersOut])
-def get_club_members(club_id : int, 
-                     user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
-                     db: Session = Depends(get_db)):
-    
-    members = db.query(models.User, models.Membership).join(models.Membership, models.User.id==models.Membership.user_id).filter(models.Membership.club_id == club_id).all()
+@router.get("/{club_id}/members", response_model=schemas.ClubMembersResponse)
+def get_club_members(
+    club_id: int,
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    db: Session = Depends(get_db)
+):
+    query = (
+        db.query(models.User)
+        .join(models.Membership, models.User.id == models.Membership.user_id)
+        .filter(models.Membership.club_id == club_id)
+    )
 
-    return members
+    total_members = query.count()
+    members = query.all()
+
+    if total_members == 0:
+        return schemas.ClubMembersResponse(
+            message="No members found in this club.",
+            total_members=0,
+            data=[]
+        )
+
+    members_data = [
+        schemas.ClubMembersOut(
+            user_id=member.id,
+            name=member.name,
+            email=member.email
+        )
+        for member in members
+    ]
+
+    return schemas.ClubMembersResponse(
+        message="Successfully retrieved club members.",
+        total_members=total_members,
+        data=members_data
+    )
 
 # Get a single user membership from a club
 @router.get("/{club_id}/members/{user_id}", response_model=schemas.ClubMembersOut)
