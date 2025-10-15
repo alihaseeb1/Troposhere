@@ -162,7 +162,6 @@ def get_club_moderator(
         data=admins
     )
 
-# Get all clubs that a user belongs to
 @router.get(
     "/clubs",
     response_model=schemas.UserClubResponse,
@@ -172,49 +171,34 @@ def get_user_clubs(
     user: models.User = Depends(require_global_role(role=models.GlobalRoles.USER.value)),
     db: Session = Depends(get_db)
 ):
-    logging.info(f"Fetching clubs for user_id={user.id}")
 
-    memberships = (
-        db.query(models.Membership)
-        .join(models.Club)
-        .filter(models.Membership.user_id == user.id)
-        .all()
-    )
+    logging.info(f"Fetching clubs for user_id={user.id} (global_role={user.global_role})")
 
-    if not memberships:
+    if user.global_role == models.GlobalRoles.SUPERUSER.value:
+        clubs = db.query(models.Club).order_by(models.Club.id.asc()).all()
+    else:
+
+        clubs = (
+            db.query(models.Club)
+            .join(models.Membership)
+            .filter(models.Membership.user_id == user.id)
+            .order_by(models.Club.id.asc())
+            .all()
+        )
+
+    if not clubs:
         return schemas.UserClubResponse(
-            message="User does not belong to any club.",
+            message="No clubs found.",
             data=[]
         )
     
-    clubs = [
-        schemas.UserClubItem(
-            club_id=membership.club.id,
-            club_name=membership.club.name,
-        )
-        for membership in memberships
-    ]
-
     return schemas.UserClubResponse(
-        message="Successfully retrieved user clubs.",
-        data=clubs
-    )
-
-# Get user's name and email
-@router.get(
-    "/info",
-    response_model=schemas.UserInfoResponse,
-    status_code=status.HTTP_200_OK
-)
-def get_user_info(
-    user: models.User = Depends(require_global_role(role=models.GlobalRoles.USER.value))
-):
-    logging.info(f"Fetching profile info for user_id={user.id}")
-
-    return schemas.UserInfoResponse(
-        message="Successfully retrieved user info.",
-        data=schemas.UserInfo(
-            name=user.name,
-            email=user.email
-        )
+        message="Successfully retrieved clubs.",
+        data=[
+            schemas.UserClubItem(
+                club_id=club.id,
+                club_name=club.name,
+            )
+            for club in clubs
+        ]
     )
