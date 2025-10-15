@@ -221,3 +221,8 @@ class ItemSearchOut(BaseModel):
 class ItemSearchResponse(BaseModel):
     message: str
     data: List[ItemSearchOut]
+
+class ClubSimpleOut(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None

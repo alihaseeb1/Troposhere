@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -6,13 +5,45 @@ from ..dependencies import require_global_role, require_club_role, is_club_exist
 from .. import models
 from .. import schemas
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from ..database import get_db
 from fastapi import status
-router = APIRouter(prefix="/clubs", tags=["Club Management"])
+import logging
 
+
+router = APIRouter(prefix="/clubs", tags=["Club Management"])
 
 def is_existing_membership(user_id: int, club_id: int, db: Session):
     return db.query(models.Membership).filter(models.Membership.user_id == user_id, models.Membership.club_id == club_id).first()
+
+# search clubs by name 
+@router.get("/search", response_model=list[schemas.ClubSimpleOut], status_code=status.HTTP_200_OK)
+def search_clubs_by_name(
+    query: str = "",
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.USER.value)),
+    db: Session = Depends(get_db)
+):
+    logging.info(f"Searching clubs with query: '{query}'")
+    clubs_query = db.query(models.Club)
+
+    if query.strip():
+        clubs_query = clubs_query.filter(
+            func.lower(models.Club.name).like(f"%{query.lower()}%")
+        )
+
+    clubs = clubs_query.order_by(models.Club.id.asc()).all()
+
+    if not clubs:
+        return []
+
+    return [
+        schemas.ClubSimpleOut(
+            id=club.id,
+            name=club.name,
+            description=club.description
+        )
+        for club in clubs
+    ]
 
 # Create a club (superuser only)
 @router.post("/", response_model=schemas.ClubOut, status_code=status.HTTP_201_CREATED)
@@ -119,21 +150,8 @@ def remove_member(club_id: int, user_id: int,
 def add_item(club_id : int, 
              item : schemas.Item, 
              club : models.Club = Depends(is_club_exist),
-             user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
+             user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value)), 
              db: Session = Depends(get_db)):
-    
-    if user.global_role != models.GlobalRoles.SUPERUSER.value:
-        membership = db.query(models.Membership).filter_by(
-            user_id=user.id,
-            club_id=club_id
-        ).first()
-
-        if not membership:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-        
-        if membership.role < models.ClubRoles.ADMIN.value:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions to add item to this club")
-        
     new_item = models.Item(**item.model_dump(), club_id = club_id)
     db.add(new_item)
     db.commit()
@@ -151,24 +169,12 @@ def add_item(club_id : int,
 @router.put("/{club_id}/items/{item_id}", status_code=status.HTTP_200_OK, response_model=schemas.ItemOut, tags =["Item Management"])
 def update_item(club_id : int, 
                 new_item : schemas.ItemUpdate, 
-                user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)), 
+                user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value)), 
                 item : models.Item = Depends(is_item_exist),
                 db: Session = Depends(get_db)):
     
     if item.club_id != club_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item does not belong to this club")
-    
-    if user.global_role != models.GlobalRoles.SUPERUSER.value:
-        membership = db.query(models.Membership).filter_by(
-            user_id=user.id,
-            club_id=club_id
-        ).first()
-
-        if not membership:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-        
-        if membership.role < models.ClubRoles.ADMIN.value:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient Permissions to add item to this club")
     
     for field, value in new_item.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
