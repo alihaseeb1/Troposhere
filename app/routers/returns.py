@@ -50,7 +50,7 @@ def return_item_by_qr(
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item borrowing not approved yet")
         
         if borrowing_transaction.item_borrowing_request.borrower_id != user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You do not have permission to return this item")
         
         return_status = (models.BorrowStatus.PENDING_CONDITION_CHECK if item.is_high_risk 
                          else models.BorrowStatus.COMPLETED)
