@@ -1,6 +1,6 @@
 # this will be holding pydantic models for request and response bodies
 
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, EmailStr, Field, field_serializer, field_validator
 from datetime import datetime
 from .models import ClubRoles, ItemStatus, BorrowStatus
@@ -154,3 +154,39 @@ class PendingApprovalOut(BaseModel):
     status: str
     requested_at: Optional[datetime] = None
     message: str
+
+class BorrowHistoryItem(BaseModel):
+    transaction_id: int
+    item_name: str
+    status: str
+    borrow_date: Optional[datetime] = None
+    return_date: Optional[datetime] = None
+
+class BorrowHistoryResponse(BaseModel):
+    message: str
+    data: List[BorrowHistoryItem]
+
+class ClubAdminItem(BaseModel):
+    user_id: int
+    name: str
+    email: str
+
+class ClubAdminResponse(BaseModel):
+    message: str
+    data: List[ClubAdminItem]
+
+class UserClubItem(BaseModel):
+    club_id: int
+    club_name: str
+
+class UserClubResponse(BaseModel):
+    message: str
+    data: List[UserClubItem]
+
+class UserInfo(BaseModel):
+    name: str
+    email: str
+
+class UserInfoResponse(BaseModel):
+    message: str
+    data: UserInfo
