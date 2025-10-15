@@ -183,3 +183,53 @@ def update_item(club_id : int,
             "data": jsonable_encoder(item)
         }
     )   
+
+@router.get("/{club_id}/details", response_model=schemas.ClubSimpleDetailsResponse, status_code=status.HTTP_200_OK)
+def get_club_details(
+    club_id: int,
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    club: models.Club = Depends(is_club_exist),
+    db: Session = Depends(get_db)
+):
+    member_count = (
+        db.query(models.Membership)
+        .filter(models.Membership.club_id == club_id)
+        .count()
+    )
+
+    return schemas.ClubSimpleDetailsResponse(
+        message="Successfully retrieved club details.",
+        data=schemas.ClubSimpleDetailsItem(
+            name=club.name,
+            description=club.description,
+            total_members=member_count
+        )
+    )
+
+@router.get("/", response_model=schemas.AllClubsResponse, status_code=status.HTTP_200_OK)
+def get_all_clubs(
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)),
+    db: Session = Depends(get_db)
+):
+    clubs = db.query(models.Club).order_by(models.Club.id.asc()).all()
+
+    if not clubs:
+        return schemas.AllClubsResponse(
+            message="No clubs found.",
+            data=[]
+        )
+
+    results = [
+        schemas.AllClubsItem(
+            id=club.id,
+            name=club.name,
+            description=club.description,
+            created_at=club.created_at
+        )
+        for club in clubs
+    ]
+
+    return schemas.AllClubsResponse(
+        message="Successfully retrieved all clubs.",
+        data=results
+    )

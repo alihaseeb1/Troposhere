@@ -190,3 +190,23 @@ class UserInfo(BaseModel):
 class UserInfoResponse(BaseModel):
     message: str
     data: UserInfo
+
+class ClubSimpleDetailsItem(BaseModel):
+    name: str
+    description: Optional[str] = None
+    total_members: int
+
+class ClubSimpleDetailsResponse(BaseModel):
+    message: str
+    data: ClubSimpleDetailsItem
+
+
+class AllClubsItem(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+
+class AllClubsResponse(BaseModel):
+    message: str
+    data: List[AllClubsItem]
