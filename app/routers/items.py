@@ -159,8 +159,10 @@ def approve_item_transaction(
         logging.debug(f"Item: ({item.id}, '{item.name}'), Club: ({item.club.id}, '{item.club.name}')")
         logging.debug(f"Approver: ({user.id}, '{user.name}'), Global role: {user.global_role}")
 
-        if user.global_role != models.GlobalRoles.SUPERUSER:
-            # Normal user → must be MODERATOR of this club
+        if user.global_role == models.GlobalRoles.SUPERUSER.value:
+            logging.debug("Superuser detected — bypassing club role check.")
+        else:
+            # Normal user → must be MODERATOR only
             membership = (
                 db.query(models.Membership)
                 .filter(
@@ -169,28 +171,26 @@ def approve_item_transaction(
                 )
                 .first()
             )
-            if not membership:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not a member of this club.")
 
             role_value = membership.role.value if hasattr(membership.role, "value") else membership.role
 
-            if role_value < models.ClubRoles.MODERATOR.value:
-                raise HTTPException(status_code=403, detail="Only moderators can approve.")
+            if role_value != models.ClubRoles.MODERATOR.value:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only moderators or superusers can approve transactions."
+                )
 
-            logging.debug(f"Approver’s membership → User: {membership.user_id}, Club: {membership.club_id}, Role: {membership.role}")
-        else:
-            logging.debug("Superuser detected — skipping membership check.")
+            logging.debug(f"Membership verified: Role {role_value} (Moderator)")
 
         current_status = transaction.status
         action = approve.action.lower()
-        logging.debug(f"Action: {action}, Current status: {current_status}, Item status: {item.status}")
 
         if current_status == models.BorrowStatus.PENDING_APPROVAL:
             if action == "approve":
                 transaction.status = models.BorrowStatus.APPROVED
                 item.status = models.ItemStatus.UNAVAILABLE
             else:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action for this status.")
 
         elif current_status == models.BorrowStatus.PENDING_CONDITION_CHECK:
             if action == "approve":
@@ -200,18 +200,16 @@ def approve_item_transaction(
                 transaction.status = models.BorrowStatus.REJECTED
                 item.status = models.ItemStatus.UNAVAILABLE
             else:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action for this status.")
 
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Transaction cannot be approved or rejected in its current state",
+                detail="Transaction cannot be approved or rejected in its current state.",
             )
 
-        logging.debug(f"Transaction updated → Status: {transaction.status}, Item: {item.status}")
         transaction.operator_id = user.id
 
-        # response message
         if transaction.status == models.BorrowStatus.REJECTED:
             message = f"The request for '{item.name}' has been rejected."
         elif transaction.status == models.BorrowStatus.APPROVED:
@@ -229,6 +227,7 @@ def approve_item_transaction(
             },
             from_attributes=True,
         )
+
         db.commit()
         return resp
 
