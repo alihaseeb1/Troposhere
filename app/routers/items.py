@@ -79,7 +79,7 @@ def update_item(new_item : schemas.ItemUpdate,
 
     return item        
 
-# Approve or reject a borrowing or return transaction by moderator (of each club) or admin (superuser)
+# Approve or reject a borrowing or return transaction by moderator (of each club) or superuser
 @router.put("/clubs/{club_id}/approval/{transaction_id}", response_model=schemas.ItemBorrowingTransactionOut)
 def approve_item_transaction(
     club_id: int,
@@ -105,7 +105,7 @@ def approve_item_transaction(
         )
 
         if not transaction:
-            raise HTTPException(status_code=404, detail="Transaction not found")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Transaction not found")
 
         borrow_request = transaction.item_borrowing_request
         item = borrow_request.item
@@ -126,7 +126,7 @@ def approve_item_transaction(
                 .first()
             )
             if not membership:
-                raise HTTPException(status_code=403, detail="You are not a member of this club.")
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not a member of this club.")
 
             role_value = membership.role.value if hasattr(membership.role, "value") else membership.role
 
@@ -146,7 +146,7 @@ def approve_item_transaction(
                 transaction.status = models.BorrowStatus.APPROVED
                 item.status = models.ItemStatus.UNAVAILABLE
             else:
-                raise HTTPException(status_code=400, detail="Invalid action")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
 
         elif current_status == models.BorrowStatus.PENDING_CONDITION_CHECK:
             if action == "approve":
@@ -156,11 +156,11 @@ def approve_item_transaction(
                 transaction.status = models.BorrowStatus.REJECTED
                 item.status = models.ItemStatus.UNAVAILABLE
             else:
-                raise HTTPException(status_code=400, detail="Invalid action")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid action")
 
         else:
             raise HTTPException(
-                status_code=400,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Transaction cannot be approved or rejected in its current state",
             )
 
@@ -194,7 +194,7 @@ def approve_item_transaction(
     except Exception as e:
         db.rollback()
         logging.exception(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
 # Get all items in a club
 @router.get("/club/{club_id}", response_model=list[schemas.ClubItemSummaryOut])
@@ -246,7 +246,7 @@ def get_item_detail(
     )
 
     if not item:
-        raise HTTPException(status_code=400, detail="Item not found")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item not found")
 
     return schemas.ItemOut.model_validate(item, from_attributes=True)
 
@@ -272,7 +272,7 @@ def get_latest_pending_transactions(
                 .first()
             )
             if not membership:
-                raise HTTPException(status_code=403, detail="You are not a member of this club.")
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="You are not a member of this club.")
 
             role_value = membership.role.value if hasattr(membership.role, "value") else membership.role
             if role_value < models.ClubRoles.MODERATOR.value:
@@ -315,7 +315,7 @@ def get_latest_pending_transactions(
         )
 
         if not latest_transactions:
-            raise HTTPException(status_code=404, detail="No pending approval requests found for this club")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No pending approval requests found for this club")
 
         transaction_list = []
         for tx in latest_transactions:
@@ -350,4 +350,4 @@ def get_latest_pending_transactions(
         raise
     except Exception as e:
         logging.exception(f"Unexpected error while fetching approvals for club {club_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
