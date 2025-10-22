@@ -13,7 +13,11 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = Field(..., env="GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: str = Field(..., env="GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI: str = Field(..., env="GOOGLE_REDIRECT_URI")
-    
+    AWS_ACCESS_KEY_ID: str = Field(..., env="AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY: str = Field(..., env="AWS_SECRET_ACCESS_KEY")
+    AWS_SESSION_TOKEN: str = Field(..., env="AWS_SESSION_TOKEN")
+    AWS_S3_BUCKET: str = Field(..., env="AWS_S3_BUCKET")
+    AWS_REGION: str = Field(..., env="AWS_REGION")
 
     model_config = SettingsConfigDict(env_file="./app/.env", env_file_encoding="utf-8")
 
