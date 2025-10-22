@@ -52,6 +52,7 @@ class Club(Base):
     description : Mapped[str] = mapped_column(String, nullable=True)
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
     memberships : Mapped[list["Membership"]] = relationship("Membership", back_populates="club", cascade="all, delete-orphan")
+    image_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     items : Mapped[list["Item"]] = relationship("Item", back_populates="club")
 
@@ -80,7 +81,17 @@ class Item(Base):
     qr_code: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     
     club: Mapped["Club"] = relationship("Club", back_populates="items")
+    images: Mapped[list["ItemImage"]] = relationship("ItemImage", back_populates="item", cascade="all, delete-orphan")
 
+class ItemImage(Base):
+    __tablename__ = "item_images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
+    item_id: Mapped[int] = mapped_column(Integer, ForeignKey("items.id", ondelete="CASCADE"), nullable=False)
+    image_url: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+
+    item: Mapped["Item"] = relationship("Item", back_populates="images")
 
 class ItemBorrowingRequest(Base):
     __tablename__ = "item_borrowing_requests"
