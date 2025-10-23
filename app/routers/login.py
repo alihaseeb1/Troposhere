@@ -36,11 +36,15 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
             picture=user_info["picture"],
             email=user_info["email"],
             provider_id=user_info["sub"],
-            provider="google"
+            provider="google",
+            # set default role to USER (.value converts the enum to its underlying integer value that the database expects.)
+            global_role=models.GlobalRoles.USER.value
         )
         db.add(user)
         db.commit()
         db.refresh(user)
     jwt_token = create_jwt(user.id)
 
-    return {"access_token": jwt_token, "token_type": "bearer"}
+    redirect_url = f"http://localhost:5173?token={jwt_token}"
+
+    return RedirectResponse(url=redirect_url)

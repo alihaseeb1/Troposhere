@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from ..dependencies import require_global_role, require_club_role, is_club_exist, is_item_exist
@@ -9,7 +9,8 @@ from sqlalchemy import func
 from ..database import get_db
 from fastapi import status
 import logging
-
+from ..utils.upload_file import upload_file_to_s3, delete_old_file_from_s3, generate_safe_filename
+from typing import List, Union
 
 router = APIRouter(prefix="/clubs", tags=["Club Management"])
 
@@ -40,10 +41,39 @@ def search_clubs_by_name(
         schemas.ClubSimpleOut(
             id=club.id,
             name=club.name,
-            description=club.description
+            description=club.description,
+            image_path=club.image_path
         )
         for club in clubs
     ]
+
+# upsert the club image (superuser only)
+@router.post("/{club_id}/upload-image", status_code=status.HTTP_200_OK)
+def upload_club_image(
+    club_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value))
+):
+    club = db.query(models.Club).filter(models.Club.id == club_id).first()
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    if club.image_path:
+        delete_old_file_from_s3(club.image_path)
+
+    file_name = generate_safe_filename("clubs", club.name, file.filename)
+    image_url = upload_file_to_s3(file, file_name)
+
+    club.image_path = image_url
+    db.commit()
+    db.refresh(club)
+
+    return {
+        "message": f"Image for '{club.name}' uploaded successfully",
+        "club_id": club.id,
+        "image_url": image_url
+    }
 
 # Create a club (superuser only)
 @router.post("/", response_model=schemas.ClubOut, status_code=status.HTTP_201_CREATED)
@@ -65,6 +95,32 @@ def delete_club(user: models.User = Depends(require_global_role(role=models.Glob
     db.delete(club)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# delete the club image (superuser only)
+@router.delete("/{club_id}/delete-image", status_code=status.HTTP_200_OK)
+def delete_club_image(
+    club_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value))
+):
+
+    club = db.query(models.Club).filter(models.Club.id == club_id).first()
+    if not club:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Club not found")
+
+    if not club.image_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No image found for this club")
+
+    delete_old_file_from_s3(club.image_path)
+
+    club.image_path = None
+    db.commit()
+    db.refresh(club)
+
+    return {
+        "message": f"Image for '{club.name}' deleted successfully",
+        "club_id": club.id
+    }
 
 # get all club members
 @router.get("/{club_id}/members", response_model=schemas.ClubMembersResponse)
@@ -218,6 +274,89 @@ def update_item(club_id : int,
         }
     )   
 
+# admin/superuser can upload item image (single/multiple file)
+@router.post("/{club_id}/items/{item_id}/upload-images", status_code=status.HTTP_200_OK)
+def upload_item_images(
+    club_id: int,
+    item_id: int,
+    files: Union[List[UploadFile], UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value))
+):
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    if isinstance(files, UploadFile):
+        files = [files]
+
+    uploaded_images = []
+
+    for file in files:
+        file_name = f"items/{file.filename}"
+        image_url = upload_file_to_s3(file, file_name)
+
+        new_image = models.ItemImage(
+            item_id=item.id,
+            image_url=image_url
+        )
+        db.add(new_image)
+        uploaded_images.append(image_url)
+
+    db.commit()
+
+    response_data = {
+        "message": f"Uploaded {len(uploaded_images)} image(s) for item '{item.name}' successfully",
+        "club_id": club_id,
+        "item_id": item.id,
+        "images": uploaded_images
+    }
+
+    return JSONResponse(content=response_data, status_code=status.HTTP_200_OK)
+
+# superuser/admin can delete image(s) of an item (by image URL)
+@router.delete("/{club_id}/items/{item_id}/delete-images", status_code=status.HTTP_200_OK)
+def delete_item_images(
+    club_id: int,
+    item_id: int,
+    request: schemas.DeleteItemImagesRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.ADMIN.value))
+):
+    
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    image_urls = request.image_urls
+    if not image_urls:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No image URLs provided")
+
+    deleted_images = []
+
+    for image_url in image_urls:
+        image_record = db.query(models.ItemImage).filter(
+            models.ItemImage.item_id == item_id,
+            models.ItemImage.image_url == image_url
+        ).first()
+
+        if image_record:
+            delete_old_file_from_s3(image_url)
+
+            db.delete(image_record)
+            deleted_images.append(image_url)
+
+    db.commit()
+
+    if not deleted_images:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No matching images found for deletion")
+
+    return {
+        "message": f"Deleted {len(deleted_images)} image(s) for item '{item.name}' successfully",
+        "item_id": item.id,
+        "deleted_images": deleted_images
+    }
+
 @router.get("/{club_id}/details", response_model=schemas.ClubSimpleDetailsResponse, status_code=status.HTTP_200_OK)
 def get_club_details(
     club_id: int,
@@ -236,6 +375,7 @@ def get_club_details(
         data=schemas.ClubSimpleDetailsItem(
             name=club.name,
             description=club.description,
+            image_path=club.image_path,
             total_members=member_count
         )
     )
@@ -258,7 +398,8 @@ def get_all_clubs(
             id=club.id,
             name=club.name,
             description=club.description,
-            created_at=club.created_at
+            created_at=club.created_at,
+            image_path=club.image_path
         )
         for club in clubs
     ]

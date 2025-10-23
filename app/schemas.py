@@ -85,6 +85,7 @@ class ItemOut(Item):
     id : int
     created_at : datetime
     club_id : Optional[int]
+    images: List[str] = [] 
 
     model_config = {
         "from_attributes": True
@@ -145,6 +146,8 @@ class ClubItemSummaryOut(BaseModel):
     status: str
     qr_code: str
     description: Optional[str] = None
+    is_high_risk: bool
+    images: List[str] = [] 
 
 class PendingApprovalOut(BaseModel):
     transaction_id: int
@@ -178,6 +181,7 @@ class ClubAdminResponse(BaseModel):
 class UserClubItem(BaseModel):
     club_id: int
     club_name: str
+    image_path: Optional[str] = None
 
 class UserClubResponse(BaseModel):
     message: str
@@ -195,6 +199,7 @@ class ClubSimpleDetailsItem(BaseModel):
     name: str
     description: Optional[str] = None
     total_members: int
+    image_path: Optional[str] = None
 
 class ClubSimpleDetailsResponse(BaseModel):
     message: str
@@ -206,6 +211,7 @@ class AllClubsItem(BaseModel):
     name: str
     description: Optional[str] = None
     created_at: datetime
+    image_path: Optional[str] = None
 
 class AllClubsResponse(BaseModel):
     message: str
@@ -217,6 +223,7 @@ class ItemSearchOut(BaseModel):
     description: Optional[str] = None
     status: str
     is_high_risk: bool
+    images: List[str] = [] 
 
 class ItemSearchResponse(BaseModel):
     message: str
@@ -226,6 +233,7 @@ class ClubSimpleOut(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    image_path: Optional[str] = None
 
 class ClubMembersOut(BaseModel):
     user_id: int
@@ -237,3 +245,6 @@ class ClubMembersResponse(BaseModel):
     message: str
     total_members: int
     data: list[ClubMembersOut]
+
+class DeleteItemImagesRequest(BaseModel):
+    image_urls: List[str] = Field(..., description="List of image URLs to delete")

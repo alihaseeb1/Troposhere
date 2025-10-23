@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Query
+from fastapi import APIRouter, Depends, HTTPException, Response, Query, UploadFile, File
 from sqlalchemy import Enum, select, func, or_
 from ..dependencies import require_global_role, is_item_exist, is_club_exist, require_club_role
 from .. import models
 from .. import schemas
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from ..database import get_db
 from fastapi import status
 import logging
+from typing import List, Union
+from ..utils.upload_file import upload_file_to_s3, delete_old_file_from_s3, generate_safe_filename
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/items", tags=["Item Management"])
 
@@ -24,6 +27,86 @@ def add_item(item : schemas.Item,
 
     return new_item
 
+# superuser can upload the image that doesn't belong to each club
+@router.post("/{item_id}/upload-images", status_code=status.HTTP_200_OK)
+def upload_item_images(
+    item_id: int,
+    files: Union[List[UploadFile], UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value))
+):
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    if isinstance(files, UploadFile):
+        files = [files]
+
+    uploaded_images = []
+
+    for file in files:
+        file_name = f"items/{file.filename}"
+        image_url = upload_file_to_s3(file, file_name)
+
+        new_image = models.ItemImage(
+            item_id=item.id,
+            image_url=image_url
+        )
+        db.add(new_image)
+        uploaded_images.append(image_url)
+
+    db.commit()
+
+    response_data = {
+        "message": f"Uploaded {len(uploaded_images)} image(s) for item '{item.name}' successfully",
+        "item_id": item.id,
+        "images": uploaded_images
+    }
+
+    return JSONResponse(content=response_data, status_code=status.HTTP_200_OK)
+
+# superuser can delete image(s) of an item (by image URL)
+@router.delete("/{item_id}/delete-images", status_code=status.HTTP_200_OK)
+def delete_item_images(
+    item_id: int,
+    request: schemas.DeleteItemImagesRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value))
+):
+    
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    image_urls = request.image_urls
+    if not image_urls:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No image URLs provided")
+
+    deleted_images = []
+
+    for image_url in image_urls:
+        image_record = db.query(models.ItemImage).filter(
+            models.ItemImage.item_id == item_id,
+            models.ItemImage.image_url == image_url
+        ).first()
+
+        if image_record:
+            delete_old_file_from_s3(image_url)
+
+            db.delete(image_record)
+            deleted_images.append(image_url)
+
+    db.commit()
+
+    if not deleted_images:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No matching images found for deletion")
+
+    return {
+        "message": f"Deleted {len(deleted_images)} image(s) for item '{item.name}' successfully",
+        "item_id": item.id,
+        "deleted_images": deleted_images
+    }
+
 @router.get("/search", response_model=schemas.ItemSearchResponse, status_code=status.HTTP_200_OK)
 def search_items_in_club(
     club_id: int = Query(..., description="Club ID to search items in"),
@@ -36,6 +119,7 @@ def search_items_in_club(
 
     items = (
         db.query(models.Item)
+        .options(selectinload(models.Item.images))
         .filter(
             models.Item.club_id == club_id,
             or_(
@@ -48,21 +132,27 @@ def search_items_in_club(
     )
 
     if not items:
+        logging.info("No matching items found.")
         return schemas.ItemSearchResponse(
             message="No matching items found.",
             data=[]
         )
 
-    results = [
-        schemas.ItemSearchOut(
-            id=item.id,
-            name=item.name,
-            description=item.description,
-            status=item.status.value if hasattr(item.status, "value") else item.status,
-            is_high_risk=item.is_high_risk
+    results = []
+    for item in items:
+        image_urls = [img.image_url for img in item.images] if item.images else []
+        logging.info(f"Item {item.id} ({item.name}) has {len(image_urls)} image(s): {image_urls}")
+
+        results.append(
+            schemas.ItemSearchOut(
+                id=item.id,
+                name=item.name,
+                description=item.description,
+                status=item.status.value if hasattr(item.status, "value") else item.status,
+                is_high_risk=item.is_high_risk,
+                images=image_urls
+            )
         )
-        for item in items
-    ]
 
     return schemas.ItemSearchResponse(
         message="Successfully retrieved search results.",
@@ -249,49 +339,73 @@ def get_items_in_club(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(10, gt=0, le=100, description="Number of items to return per page"),
 ):
+    logging.info(f"📦 Fetching items for club_id={club_id}")
 
-    logging.info(f"Fetching items for club_id={club_id}")
-
-    items_query = (
-        select(models.Item)
-        .where(models.Item.club_id == club_id)
+    items = (
+        db.query(models.Item)
+        .options(selectinload(models.Item.images))
+        .filter(models.Item.club_id == club_id)
         .order_by(models.Item.id.asc())
         .offset(skip)
         .limit(limit)
+        .all()
     )
 
-    items = db.execute(items_query).scalars().all()
-
     if not items:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No items found for this club")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No items found for this club"
+        )
 
     item_list = []
     for item in items:
-        item_data = schemas.ClubItemSummaryOut.model_validate(item, from_attributes=True)
+        image_urls = [img.image_url for img in item.images] if item.images else []
+        logging.info(f"Item {item.id} ({item.name}) has {len(image_urls)} image(s): {image_urls}")
+
+        item_data = schemas.ClubItemSummaryOut(
+            id=item.id,
+            name=item.name,
+            description=item.description,
+            status=item.status.value if hasattr(item.status, "value") else item.status,
+            is_high_risk=item.is_high_risk,
+            qr_code=item.qr_code,
+            images=image_urls
+        )
         item_list.append(item_data)
 
     return item_list
 
-# Get item details by item ID
 @router.get("/{item_id}", response_model=schemas.ItemOut)
 def get_item_detail(
     item_id: int,
     db: Session = Depends(get_db),
 ):
-
     item = (
-        db.execute(
-            select(models.Item)
-            .where(models.Item.id == item_id)
-        )
-        .scalars()
+        db.query(models.Item)
+        .options(selectinload(models.Item.images))
+        .filter(models.Item.id == item_id)
         .first()
     )
 
     if not item:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Item not found"
+        )
 
-    return schemas.ItemOut.model_validate(item, from_attributes=True)
+    item_data = schemas.ItemOut(
+        id=item.id,
+        name=item.name,
+        description=item.description,
+        status=item.status.value if hasattr(item.status, "value") else item.status,
+        is_high_risk=item.is_high_risk,
+        qr_code=item.qr_code,
+        created_at=item.created_at,
+        club_id=item.club_id,
+        images=[img.image_url for img in item.images] if item.images else []
+    )
+
+    return item_data
 
 # Get latest pending approval or condition check of items in each club
 @router.get("/clubs/{club_id}/approval", response_model=list[schemas.PendingApprovalOut])

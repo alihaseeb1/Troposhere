@@ -198,6 +198,7 @@ def get_user_clubs(
             schemas.UserClubItem(
                 club_id=club.id,
                 club_name=club.name,
+                image_path=club.image_path
             )
             for club in clubs
         ]
