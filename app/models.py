@@ -39,7 +39,7 @@ class User(Base):
     provider_id : Mapped[str] = mapped_column(String, nullable=False, unique=True)
     provider : Mapped[str] = mapped_column(String, nullable=False)
     picture : Mapped[str] = mapped_column(String, nullable=True)
-    global_role : Mapped[GlobalRoles] = mapped_column(Integer, nullable=False, default=GlobalRoles.USER)
+    global_role : Mapped[GlobalRoles] = mapped_column(Integer, nullable=False, default=0)
     memberships : Mapped[list["Membership"]] = relationship("Membership", back_populates="user", cascade="all, delete-orphan")
     
     logs: Mapped[list["Logging"]] = relationship("Logging", back_populates="user", cascade="all, delete-orphan")
@@ -89,6 +89,7 @@ class ItemBorrowingRequest(Base):
     borrower_id : Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     return_date : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now() + interval \'7 days\''))
     created_at : Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
+    is_warning_email_sent : Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
     
     borrower : Mapped["User"] = relationship("User")
     item : Mapped["Item"] = relationship("Item")
