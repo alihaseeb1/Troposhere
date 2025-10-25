@@ -203,3 +203,35 @@ def get_user_clubs(
             for club in clubs
         ]
     )
+
+@router.get(
+    "/profile",
+    response_model=schemas.UserBasicResponse,
+    status_code=status.HTTP_200_OK
+)
+def get_user_basic_info(
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.USER.value)),
+    db: Session = Depends(get_db)
+):
+
+    logging.info(f"Fetching basic user info for user_id={user.id}")
+
+    user_data = (
+        db.query(models.User)
+        .filter(models.User.id == user.id)
+        .first()
+    )
+
+    if not user_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    return schemas.UserBasicResponse(
+        message="Successfully retrieved user info.",
+        data=schemas.UserBasicOut(
+            name=user_data.name,
+            email=user_data.email
+        )
+    )

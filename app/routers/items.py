@@ -107,58 +107,6 @@ def delete_item_images(
         "deleted_images": deleted_images
     }
 
-@router.get("/search", response_model=schemas.ItemSearchResponse, status_code=status.HTTP_200_OK)
-def search_items_in_club(
-    club_id: int = Query(..., description="Club ID to search items in"),
-    query: str = Query(..., description="Search keyword (matches name or description)"),
-    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
-    club: models.Club = Depends(is_club_exist),
-    db: Session = Depends(get_db),
-):
-    logging.info(f"Searching items in club_id={club_id} with query='{query}'")
-
-    items = (
-        db.query(models.Item)
-        .options(selectinload(models.Item.images))
-        .filter(
-            models.Item.club_id == club_id,
-            or_(
-                models.Item.name.ilike(f"%{query}%"),
-                models.Item.description.ilike(f"%{query}%")
-            )
-        )
-        .order_by(models.Item.id.asc())
-        .all()
-    )
-
-    if not items:
-        logging.info("No matching items found.")
-        return schemas.ItemSearchResponse(
-            message="No matching items found.",
-            data=[]
-        )
-
-    results = []
-    for item in items:
-        image_urls = [img.image_url for img in item.images] if item.images else []
-        logging.info(f"Item {item.id} ({item.name}) has {len(image_urls)} image(s): {image_urls}")
-
-        results.append(
-            schemas.ItemSearchOut(
-                id=item.id,
-                name=item.name,
-                description=item.description,
-                status=item.status.value if hasattr(item.status, "value") else item.status,
-                is_high_risk=item.is_high_risk,
-                images=image_urls
-            )
-        )
-
-    return schemas.ItemSearchResponse(
-        message="Successfully retrieved search results.",
-        data=results
-    )
-
 # Delete an item
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(
@@ -329,51 +277,60 @@ def approve_item_transaction(
         logging.exception(f"Unexpected error: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
-# Get all items in a club
-@router.get("/club/{club_id}", response_model=list[schemas.ClubItemSummaryOut])
-def get_items_in_club(
+@router.get(
+    "/club/{club_id}",
+    response_model=schemas.ItemSearchResponse,
+    status_code=status.HTTP_200_OK
+)
+def get_or_search_items_in_club(
     club_id: int,
-    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
-    club: models.Club = Depends(is_club_exist), 
-    db: Session = Depends(get_db),
+    query: str | None = Query(None, description="Search keyword (optional, matches name or description)"),
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(10, gt=0, le=100, description="Number of items to return per page"),
+    user: models.User = Depends(require_club_role(role=models.ClubRoles.MEMBER.value)),
+    club: models.Club = Depends(is_club_exist),
+    db: Session = Depends(get_db),
 ):
-    logging.info(f"📦 Fetching items for club_id={club_id}")
 
-    items = (
-        db.query(models.Item)
-        .options(selectinload(models.Item.images))
-        .filter(models.Item.club_id == club_id)
-        .order_by(models.Item.id.asc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    logging.info(f"Fetching items for club_id={club_id}, query='{query}'")
 
-    if not items:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No items found for this club"
+    q = db.query(models.Item).options(selectinload(models.Item.images)).filter(models.Item.club_id == club_id)
+
+    if query:
+        q = q.filter(
+            or_(
+                models.Item.name.ilike(f"%{query}%"),
+                models.Item.description.ilike(f"%{query}%")
+            )
         )
 
-    item_list = []
+    items = q.order_by(models.Item.id.asc()).offset(skip).limit(limit).all()
+
+    if not items:
+        logging.info("No items found for this club.")
+        return schemas.ItemSearchResponse(message="No items found.", data=[])
+
+    results = []
     for item in items:
         image_urls = [img.image_url for img in item.images] if item.images else []
         logging.info(f"Item {item.id} ({item.name}) has {len(image_urls)} image(s): {image_urls}")
 
-        item_data = schemas.ClubItemSummaryOut(
-            id=item.id,
-            name=item.name,
-            description=item.description,
-            status=item.status.value if hasattr(item.status, "value") else item.status,
-            is_high_risk=item.is_high_risk,
-            qr_code=item.qr_code,
-            images=image_urls
+        results.append(
+            schemas.ItemSearchOut(
+                id=item.id,
+                name=item.name,
+                description=item.description,
+                status=item.status.value if hasattr(item.status, "value") else item.status,
+                is_high_risk=item.is_high_risk,
+                qr_code=getattr(item, "qr_code", None),
+                images=image_urls
+            )
         )
-        item_list.append(item_data)
 
-    return item_list
+    return schemas.ItemSearchResponse(
+        message="Successfully retrieved items." if not query else "Successfully retrieved search results.",
+        data=results
+    )
 
 @router.get("/{item_id}", response_model=schemas.ItemOut)
 def get_item_detail(

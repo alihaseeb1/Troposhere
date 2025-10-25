@@ -248,3 +248,11 @@ class ClubMembersResponse(BaseModel):
 
 class DeleteItemImagesRequest(BaseModel):
     image_urls: List[str] = Field(..., description="List of image URLs to delete")
+
+class UserBasicOut(BaseModel):
+    name: str
+    email: str
+
+class UserBasicResponse(BaseModel):
+    message: str
+    data: UserBasicOut
