@@ -232,6 +232,7 @@ def get_user_basic_info(
         message="Successfully retrieved user info.",
         data=schemas.UserBasicOut(
             name=user_data.name,
-            email=user_data.email
+            email=user_data.email,
+            picture=user_data.picture
         )
     )

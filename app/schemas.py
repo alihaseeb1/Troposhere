@@ -252,6 +252,7 @@ class DeleteItemImagesRequest(BaseModel):
 class UserBasicOut(BaseModel):
     name: str
     email: str
+    picture: str
 
 class UserBasicResponse(BaseModel):
     message: str
