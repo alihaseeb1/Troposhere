@@ -474,14 +474,19 @@ def get_club_details(
         .count()
     )
 
-    return schemas.ClubSimpleDetailsResponse(
-        message="Successfully retrieved club details.",
-        data=schemas.ClubSimpleDetailsItem(
-            name=club.name,
-            description=club.description,
-            image_path=club.image_path,
-            total_members=member_count
-        )
+    response_content = {
+        "message": "Successfully retrieved club details.",
+        "data": {
+            "name": club.name,
+            "description": club.description,
+            "image_path": club.image_path,
+            "total_members": member_count
+        }
+    }
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content=response_content
     )
 
 @router.get("/", response_model=schemas.AllClubsResponse, status_code=status.HTTP_200_OK)
@@ -492,23 +497,33 @@ def get_all_clubs(
     clubs = db.query(models.Club).order_by(models.Club.id.asc()).all()
 
     if not clubs:
-        return schemas.AllClubsResponse(
-            message="No clubs found.",
-            data=[]
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={
+                "message": "No clubs found.",
+                "data": []
+            }
         )
 
-    results = [
-        schemas.AllClubsItem(
-            id=club.id,
-            name=club.name,
-            description=club.description,
-            created_at=club.created_at,
-            image_path=club.image_path
+    results = []
+    for club in clubs:
+        member_count = (
+            db.query(models.Membership)
+            .filter(models.Membership.club_id == club.id)
+            .count()
         )
-        for club in clubs
-    ]
 
-    return schemas.AllClubsResponse(
-        message="Successfully retrieved all clubs.",
-        data=results
+        results.append({
+            "name": club.name,
+            "description": club.description,
+            "image_path": club.image_path,
+            "total_members": member_count
+        })
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "Successfully retrieved all clubs.",
+            "data": results
+        }
     )
