@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
 from ..dependencies import  require_global_role, is_club_exist, require_club_role
 from .. import models
 from sqlalchemy.orm import Session
@@ -206,7 +207,7 @@ def get_user_clubs(
 
 @router.get(
     "/profile",
-    response_model=schemas.UserBasicResponse,
+    response_model=schemas.UserProfile,
     status_code=status.HTTP_200_OK
 )
 def get_user_basic_info(
@@ -214,24 +215,27 @@ def get_user_basic_info(
     db: Session = Depends(get_db)
 ):
 
-    logging.info(f"Fetching basic user info for user_id={user.id}")
+    # logging.info(f"Fetching basic user info for user_id={user.id}")
 
-    user_data = (
-        db.query(models.User)
-        .filter(models.User.id == user.id)
-        .first()
-    )
+    # user_data = (
+    #     db.query(models.User)
+    #     .filter(models.User.id == user.id)
+    #     .first()
+    # )
+    return schemas.UserProfile.model_validate(user) 
 
-    if not user_data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found."
-        )
+@router.get("/search/", response_model=schemas.UserOut)
+def get_a_user(
+    q: str = Query(..., min_length=1, description="Search user by exact name or student ID"),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(require_global_role(role=models.GlobalRoles.USER.value))):
 
-    return schemas.UserBasicResponse(
-        message="Successfully retrieved user info.",
-        data=schemas.UserBasicOut(
-            name=user_data.name,
-            email=user_data.email
-        )
-    )
+
+    user = db.query(models.User).filter(
+        (func.upper(models.User.name) == func.upper(q)) | (func.split_part(models.User.email, "@", 1) == q)
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    return user

@@ -253,6 +253,9 @@ class UserBasicOut(BaseModel):
     name: str
     email: str
 
-class UserBasicResponse(BaseModel):
-    message: str
-    data: UserBasicOut
+class UserProfile(UserOut):
+    global_role: int
+    memberships: List[MembershipOut] = []
+    created_at : datetime
+
+    model_config = {"from_attributes" : True}

@@ -11,6 +11,7 @@ from fastapi import status
 import logging
 from ..utils.upload_file import upload_file_to_s3, delete_old_file_from_s3, generate_safe_filename
 from typing import List, Union
+from ..utils.log import log_operation
 
 router = APIRouter(prefix="/clubs", tags=["Club Management"])
 
@@ -59,6 +60,8 @@ def upload_club_image(
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
 
+    old_data = club.__dict__
+
     if club.image_path:
         delete_old_file_from_s3(club.image_path)
 
@@ -68,6 +71,15 @@ def upload_club_image(
     club.image_path = image_url
     db.commit()
     db.refresh(club)
+
+    log_operation(
+        db,
+        tablename="clubs",
+        operation="UPDATE",
+        who_id=user.id,
+        old_val=old_data,
+        new_val=club
+    )
 
     return {
         "message": f"Image for '{club.name}' uploaded successfully",
@@ -84,6 +96,14 @@ def create_club(club : schemas.Club, user: models.User = Depends(require_global_
     db.commit()
     db.refresh(new_club)
 
+    log_operation(
+        db,
+        tablename="clubs",
+        operation="CREATE",
+        who_id=user.id,
+        new_val=new_club
+    )
+
     return new_club
 
 # delete an existing club (superuser only)
@@ -92,8 +112,19 @@ def delete_club(user: models.User = Depends(require_global_role(role=models.Glob
                 db: Session = Depends(get_db), 
                 club : models.Club = Depends(is_club_exist)):
     
+    old_data = club.__dict__.copy()
+
     db.delete(club)
     db.commit()
+    
+    log_operation(
+        db,
+        tablename="clubs",
+        operation="DELETE",
+        who_id=user.id,
+        old_val=old_data
+    )
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # delete the club image (superuser only)
@@ -111,11 +142,22 @@ def delete_club_image(
     if not club.image_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No image found for this club")
 
+    old_data = club.__dict__
+
     delete_old_file_from_s3(club.image_path)
 
     club.image_path = None
     db.commit()
     db.refresh(club)
+
+    log_operation(
+        db,
+        tablename="clubs",
+        operation="UPDATE",
+        who_id=user.id,
+        old_val=old_data,
+        new_val=club
+    )
 
     return {
         "message": f"Image for '{club.name}' deleted successfully",
@@ -196,10 +238,19 @@ def set_roles(club_id: int,
                 if set_role.role.value >= changer_membership.role:
                     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Insufficient Permissions to Set Membership Role to {set_role.role.name} for user_id: {user_id}")
                 
-
+            old_data = existing_member.__dict__
             existing_member.role = set_role.role.value
             db.commit()
             db.refresh(existing_member)
+
+            log_operation(
+                db,
+                tablename="memberships",
+                operation="UPDATE",
+                who_id=user.id,
+                old_val=old_data,
+                new_val=existing_member
+            )
             return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(existing_member))
         
     new_membership = models.Membership(user_id=user_id, club_id=club_id, role=set_role.role.value)
@@ -207,6 +258,14 @@ def set_roles(club_id: int,
     db.commit()
     db.refresh(new_membership)
     
+    log_operation(
+        db,
+        tablename="memberships",
+        operation="CREATE",
+        who_id=user.id,
+        new_val=new_membership
+    )
+
     return JSONResponse(status_code=status.HTTP_201_CREATED, content=jsonable_encoder(new_membership))
 
 # remove a user from a club
@@ -216,10 +275,12 @@ def remove_member(club_id: int, user_id: int,
                   db: Session = Depends(get_db)):
     
     existing_member = is_existing_membership(user_id, club_id, db)
+
     if not existing_member:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User is not a member of the club")
     else:
         # removal only possible if rank lower than the user making the change
+        old_data = existing_member.__dict__.copy()
         changer_membership = is_existing_membership(user.id, club_id, db)
         if user.global_role != models.GlobalRoles.SUPERUSER.value:
             if not changer_membership or changer_membership.role <= existing_member.role:
@@ -227,7 +288,15 @@ def remove_member(club_id: int, user_id: int,
         
         db.delete(existing_member)
         db.commit()
-        return Response(status.HTTP_204_NO_CONTENT)
+
+        log_operation(
+            db,
+            tablename="memberships",
+            operation="DELETE",
+            who_id=user.id,
+            old_val=old_data
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # admin can add the item belongs to their club or superuser can add item in any club
 @router.post("/{club_id}/items", status_code=status.HTTP_201_CREATED, response_model=schemas.ItemOut, tags=["Item Management"])
@@ -240,6 +309,14 @@ def add_item(club_id : int,
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
+
+    log_operation(
+        db,
+        tablename="items",
+        operation="CREATE",
+        who_id=user.id,
+        new_val=new_item
+    )
 
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
@@ -260,11 +337,22 @@ def update_item(club_id : int,
     if item.club_id != club_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item does not belong to this club")
     
+    old_data = item.__dict__.copy()
+
     for field, value in new_item.model_dump(exclude_unset=True).items():
         setattr(item, field, value)
 
     db.commit()
     db.refresh(item)
+
+    log_operation(
+        db,
+        tablename="items",
+        operation="UPDATE",
+        who_id=user.id,
+        old_val=old_data,
+        new_val=item
+    )
 
     return JSONResponse(
         status_code=status.HTTP_200_OK,
@@ -304,6 +392,14 @@ def upload_item_images(
         uploaded_images.append(image_url)
 
     db.commit()
+
+    log_operation(
+        db,
+        tablename="item_images",
+        operation="CREATE",
+        who_id=user.id,
+        new_val={"item_id": item.id, "images": uploaded_images}
+    )
 
     response_data = {
         "message": f"Uploaded {len(uploaded_images)} image(s) for item '{item.name}' successfully",
@@ -350,6 +446,14 @@ def delete_item_images(
 
     if not deleted_images:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No matching images found for deletion")
+
+    log_operation(
+        db,
+        tablename="item_images",
+        operation="DELETE",
+        who_id=user.id,
+        old_val={"item_id": item.id, "deleted_images": deleted_images}
+    )
 
     return {
         "message": f"Deleted {len(deleted_images)} image(s) for item '{item.name}' successfully",

@@ -12,6 +12,8 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 
+from ..utils.log import log_operation
+
 router = APIRouter(prefix="/clubs/{club_id}/borrow", tags=["Club Management", "Borrowing"])
 
 
@@ -88,6 +90,15 @@ def borrow_item_by_qr(
         )
 
         db.commit()
+
+        log_operation(
+            who_id=user.id,
+            tablename="item_borrowing_requests",
+            operation = "BORROW_ITEM",
+            old_val=None,
+            new_val= borrowing_request
+        )
+
         return resp
 
     except HTTPException:

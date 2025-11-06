@@ -5,6 +5,7 @@ from fastapi import HTTPException, UploadFile
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import settings
 from urllib.parse import urlparse
+from sqlalchemy.orm import Session
 
 def generate_safe_filename(folder_prefix: str, base_name: str, original_filename: str) -> str:
     file_ext = original_filename.split(".")[-1] if "." in original_filename else "jpg"
@@ -64,3 +65,4 @@ def delete_old_file_from_s3(image_url: str):
         print(f"Deleted from S3: {key}")
     except ClientError as e:
         print(f"Failed to delete from S3: {e}")
+

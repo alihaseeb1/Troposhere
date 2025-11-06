@@ -8,6 +8,7 @@ from fastapi import status
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, desc
+from ..utils.log import log_operation
 
 router = APIRouter(prefix="/clubs/{club_id}/return", tags=["Club Management", "Return"])
 
@@ -68,6 +69,19 @@ def return_item_by_qr(
         db.add(return_transaction)
         db.commit()
 
+        log_operation(
+            db,
+            tablename="item_borrowing_transactions",
+            operation="RETURN",
+            who_id=user.id,
+            old_val={"item_id": item.id, "previous_status": str(models.BorrowStatus.APPROVED)},
+            new_val={
+                "item_id": item.id,
+                "new_status": str(return_status),
+                "remarks": return_transaction.remarks
+            },
+        )
+
         message = "Item returned, pending condition check" if item.is_high_risk else "Item successfully returned"
 
         resp = schemas.BorrowItemOut.model_validate(
@@ -77,9 +91,6 @@ def return_item_by_qr(
 
         return resp
         
-    except HTTPException:
-        db.rollback()
-        raise
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal Server Error")

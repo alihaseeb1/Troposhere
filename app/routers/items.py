@@ -10,6 +10,7 @@ import logging
 from typing import List, Union
 from ..utils.upload_file import upload_file_to_s3, delete_old_file_from_s3, generate_safe_filename
 from fastapi.responses import JSONResponse
+from ..utils.log import log_operation
 
 router = APIRouter(prefix="/items", tags=["Item Management"])
 
@@ -24,6 +25,14 @@ def add_item(item : schemas.Item,
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
+
+    log_operation(
+        db,
+        tablename="items",
+        operation="INSERT",
+        who_id=user.id,
+        new_val=new_item.__dict__,
+    )
 
     return new_item
 
@@ -54,6 +63,14 @@ def upload_item_images(
         )
         db.add(new_image)
         uploaded_images.append(image_url)
+
+    log_operation(
+        db,
+        tablename="item_images",
+        operation="INSERT",
+        who_id=user.id,
+        new_val={"item_id": item.id, "images": uploaded_images},
+    )
 
     db.commit()
 
@@ -95,11 +112,20 @@ def delete_item_images(
 
             db.delete(image_record)
             deleted_images.append(image_url)
+    
+    if not deleted_images:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No matching images found for deletion")
 
     db.commit()
 
-    if not deleted_images:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No matching images found for deletion")
+    log_operation(
+        db,
+        tablename="item_images",
+        operation="DELETE",
+        who_id=user.id,
+        old_val={"item_id": item.id, "deleted_images": deleted_images},
+    )
+
 
     return {
         "message": f"Deleted {len(deleted_images)} image(s) for item '{item.name}' successfully",
@@ -114,9 +140,17 @@ def delete_item(
     db: Session = Depends(get_db),
     item : models.Item = Depends(is_item_exist)
     ):
-    
+    old_val = item.__dict__.copy()
     db.delete(item)
     db.commit()
+
+    log_operation(
+        db,
+        tablename="items",
+        operation="DELETE",
+        who_id=user.id,
+        old_val=old_val,
+    )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -126,6 +160,8 @@ def change_ownership(to_club: schemas.ItemTransferIn,
                      user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)),
                      item : models.Item = Depends(is_item_exist), 
                      db: Session = Depends(get_db)):
+
+    old_val = {"item_id" : item.id, "club_id": item.club_id}
 
     if to_club.club_id is not None:
         club = db.query(models.Club).filter(models.Club.id == to_club.club_id).first()
@@ -142,6 +178,15 @@ def change_ownership(to_club: schemas.ItemTransferIn,
     db.commit()
     db.refresh(item)
 
+    log_operation(
+        db,
+        tablename="items",
+        operation="UPDATE",
+        who_id=user.id,
+        old_val=old_val,
+        new_val={"item_id" : item.id, "club_id": item.club_id},
+    )
+    
     return item
 
 # Superusers can update an item without a club 
@@ -151,6 +196,8 @@ def update_item(new_item : schemas.ItemUpdate,
              item : models.Item = Depends(is_item_exist),
              db: Session = Depends(get_db)):
     
+    old_val = item.__dict__.copy()
+
     for field, value in new_item.model_dump(exclude_unset=True).items():
         if isinstance(value, Enum):
             value = value.value
@@ -158,6 +205,16 @@ def update_item(new_item : schemas.ItemUpdate,
 
     db.commit()
     db.refresh(item)
+
+    print(item.__dict__)
+    log_operation(
+        db,
+        tablename="items",
+        operation="UPDATE",
+        who_id=user.id,
+        old_val=old_val,
+        new_val=item.__dict__,
+    )
 
     return item        
 
@@ -267,6 +324,15 @@ def approve_item_transaction(
         )
 
         db.commit()
+
+        log_operation(
+            db,
+            tablename="item_borrowing_transaction",
+            operation="UPDATE",
+            who_id=user.id,
+            new_val={"transaction_id": transaction_id, "status": transaction.status.value},
+            old_val={"previous_status": current_status.value if hasattr(current_status, "value") else current_status},
+        )
         return resp
 
     except HTTPException:

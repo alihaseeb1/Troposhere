@@ -47,4 +47,7 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
 
     redirect_url = f"http://localhost:5173?token={jwt_token}"
 
-    return RedirectResponse(url=redirect_url)
+    # uncomment for frontend
+    # return RedirectResponse(url=redirect_url)
+    
+    return {"access_token": jwt_token, "token_type": "bearer"}
