@@ -1,0 +1,26 @@
+version: "3.8"
+services:
+  db:
+    image: postgres:15
+    # environment:
+    #   POSTGRES_USER: localuser
+    #   POSTGRES_PASSWORD: localpass
+    #   POSTGRES_DB: localdb
+    env_file:
+      - .env
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build: .
+    env_file:
+      - .env
+    depends_on:
+      - db
+    ports:
+      - "8000:80"
+
+volumes:
+  db_data:
