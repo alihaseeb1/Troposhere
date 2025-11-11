@@ -6,12 +6,22 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import settings
 from urllib.parse import urlparse
 from sqlalchemy.orm import Session
+import os
 
-def generate_safe_filename(folder_prefix: str, base_name: str, original_filename: str) -> str:
-    file_ext = original_filename.split(".")[-1] if "." in original_filename else "jpg"
-    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", base_name.strip().lower())
-    return f"{folder_prefix}/{safe_name}.{file_ext}"
-
+def create_unique_filename(filename: str) -> str:
+    """
+    Generates a unique filename using UUID and preserves the original extension.
+    
+    Example: "my_photo.jpg" -> "a1b2c3d4-e5f6-7890-a1b2-c3d4e5f67890.jpg"
+    """
+    # os.path.splitext('my_photo.jpg') returns ('my_photo', '.jpg')
+    _name, extension = os.path.splitext(filename)
+    
+    # Generate a random UUID and convert it to a string
+    unique_id = str(uuid.uuid4())
+    unique_filename = f"{unique_id}{extension}"
+    
+    return unique_filename
 
 def upload_file_to_s3(file: UploadFile, file_name: str) -> str:
     if not settings.AWS_S3_BUCKET:

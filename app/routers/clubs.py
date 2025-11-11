@@ -9,7 +9,7 @@ from sqlalchemy import func
 from ..database import get_db
 from fastapi import status
 import logging
-from ..utils.upload_file import upload_file_to_s3, delete_old_file_from_s3, generate_safe_filename
+from ..utils.upload_file import upload_file_to_s3, delete_old_file_from_s3, create_unique_filename
 from typing import List, Union
 from ..utils.log import log_operation
 
@@ -65,7 +65,7 @@ def upload_club_image(
     if club.image_path:
         delete_old_file_from_s3(club.image_path)
 
-    file_name = generate_safe_filename("clubs", club.name, file.filename)
+    file_name = f"clubs/{create_unique_filename(file.filename)}"
     image_url = upload_file_to_s3(file, file_name)
 
     club.image_path = image_url
@@ -381,7 +381,7 @@ def upload_item_images(
     uploaded_images = []
 
     for file in files:
-        file_name = f"items/{file.filename}"
+        file_name = f"items/{create_unique_filename(file.filename)}"
         image_url = upload_file_to_s3(file, file_name)
 
         new_image = models.ItemImage(

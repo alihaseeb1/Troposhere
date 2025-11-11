@@ -6,10 +6,15 @@ from sqlalchemy import pool
 from alembic import context
 from app.models import Base
 from app.config import settings
+# from alembic.config import ConfigParser
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+# config.config_file_name = 'alembic.ini'
+# config.file_config = ConfigParser(interpolation=None)
+
 config.set_main_option(
     'sqlalchemy.url', 
     f'postgresql+psycopg://{settings.DATABASE_USERNAME}:{settings.DATABASE_PASSWORD}@{settings.DATABASE_HOSTNAME}:{settings.DATABASE_PORT}/{settings.DATABASE_NAME}'

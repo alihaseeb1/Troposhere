@@ -27,6 +27,7 @@ PY
 fi
 
 # run alembic migrations here
+echo " migrations is set to $RUN_MIGRATIONS"
 if [ "$RUN_MIGRATIONS" = "1" ]; then
   echo "Running migrations..."
   alembic upgrade head
