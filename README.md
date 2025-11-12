@@ -17,3 +17,9 @@ To test locally you need a token:
 1. type localhost:8000/auth in the browser
 2. copy the token
 3. Use this in HTTP Authorization header with type bearer (can also use the likes of postman)
+
+To run the the api locally with docker and s3 bucket online
+1. fix the .env file (with the values provided)
+2. run docker build -t fastapi-app .
+3. docker run -d --name fastapi-container --env-file .env -p 8000:80 fastapi-app
+4. make sure to allow access in the rds for your pc
