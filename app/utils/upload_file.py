@@ -34,7 +34,7 @@ def upload_file_to_s3(file: UploadFile, file_name: str) -> str:
         "s3",
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
         aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        aws_session_token=settings.AWS_SESSION_TOKEN,
+        # aws_session_token=settings.AWS_SESSION_TOKEN,
         region_name=region
     )
 
