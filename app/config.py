@@ -1,3 +1,4 @@
+from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 
@@ -18,7 +19,9 @@ class Settings(BaseSettings):
     # AWS_SESSION_TOKEN: str = Field(..., env="AWS_SESSION_TOKEN")
     AWS_S3_BUCKET: str = Field(..., env="AWS_S3_BUCKET")
     AWS_REGION: str = Field(..., env="AWS_REGION")
-
+    ALLOWED_ORIGIN: str = Field(..., env="ALLOWED_ORIGIN")
+    FRONTEND_URL: str = Field(..., env="FRONTEND_URL")
+    
     model_config = SettingsConfigDict(env_file="./app/.env", env_file_encoding="utf-8", extra="allow")
 
 settings = Settings()
