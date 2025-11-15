@@ -13,10 +13,13 @@ from ..auth.oauth import create_jwt
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.get("/")
-async def google_login(request: Request):
+async def google_login(request: Request, redirect: str | None = None):
     # print("Session before login:", request.session)
     redirect_uri = settings.GOOGLE_REDIRECT_URI
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    
+    state_value = redirect
+    
+    return await oauth.google.authorize_redirect(request, redirect_uri, state=state_value)
 
 @router.get("/google/callback")
 async def auth_callback(request: Request, db: Session = Depends(get_db)):
@@ -48,6 +51,12 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
     redirect_url = f"{settings.FRONTEND_URL}?token={jwt_token}"
 
     # uncomment for frontend
-    # return RedirectResponse(url=redirect_url)
+    state = request.query_params.get("state")
+
+    frontend_redirect = state
+    
+    redirect_url = f"{frontend_redirect}?token={jwt_token}"
+
+    return RedirectResponse(url=redirect_url)
     
     return {"access_token": jwt_token, "token_type": "bearer"}
