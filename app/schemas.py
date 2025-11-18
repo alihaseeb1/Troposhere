@@ -161,6 +161,9 @@ class PendingApprovalOut(BaseModel):
 class BorrowHistoryItem(BaseModel):
     transaction_id: int
     item_name: str
+    item_id : int
+    item_club_id : int | None
+    item_qr_code : str
     status: str
     borrow_date: Optional[datetime] = None
     return_date: Optional[datetime] = None

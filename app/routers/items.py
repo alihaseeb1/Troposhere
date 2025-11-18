@@ -524,6 +524,8 @@ def get_latest_pending_transactions(
                     "status": tx.status.value,
                     "requested_at": getattr(tx, "processed_at", None),
                     "message": message,
+                    "club_id": item.club.id if item.club else None,
+                    "qr_code": item.qr_code
                 },
                 from_attributes=True,
             )

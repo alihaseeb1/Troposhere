@@ -91,6 +91,10 @@ def upload_club_image(
 @router.post("/", response_model=schemas.ClubOut, status_code=status.HTTP_201_CREATED)
 def create_club(club : schemas.Club, user: models.User = Depends(require_global_role(role=models.GlobalRoles.SUPERUSER.value)), db: Session = Depends(get_db)):
     new_club = models.Club(name=club.name, description=club.description)
+    # check if club name exists
+    existing_club = db.query(models.Club).filter(models.Club.name == club.name).first()
+    if existing_club:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Club with this name already exists")
     
     db.add(new_club)
     db.commit()

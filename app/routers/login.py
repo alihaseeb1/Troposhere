@@ -47,9 +47,7 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(user)
     jwt_token = create_jwt(user.id)
-
-    redirect_url = f"{settings.FRONTEND_URL}?token={jwt_token}"
-
+    
     # uncomment for frontend
     state = request.query_params.get("state")
 

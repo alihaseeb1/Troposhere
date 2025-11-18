@@ -38,6 +38,9 @@ def get_borrow_history(
     results = [
         schemas.BorrowHistoryItem(
             transaction_id=record.id,
+            item_id=record.item_borrowing_request.item.id,
+            item_club_id=record.item_borrowing_request.item.club.id if record.item_borrowing_request.item.club else None,
+            item_qr_code=record.item_borrowing_request.item.qr_code,
             item_name=record.item_borrowing_request.item.name,
             status=record.status.value if hasattr(record.status, "value") else record.status,
             borrow_date=getattr(record.item_borrowing_request, "created_at", None),

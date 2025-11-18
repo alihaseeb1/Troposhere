@@ -20,15 +20,7 @@ class Settings(BaseSettings):
     AWS_S3_BUCKET: str = Field(..., env="AWS_S3_BUCKET")
     AWS_REGION: str = Field(..., env="AWS_REGION")
     ALLOWED_ORIGIN: str = Field(..., env="ALLOWED_ORIGIN")
-    FRONTEND_URL: str = Field(..., env="FRONTEND_URL")
-    
-    @field_validator("ALLOWED_ORIGIN")
-    def split_origins(cls, v):
-        # Allow "*"
-        if v.strip() == "*":
-            return ["*"]
-        return [origin.strip() for origin in v.split(",")]
-    
+        
     model_config = SettingsConfigDict(env_file="./app/.env", env_file_encoding="utf-8", extra="allow")
 
 settings = Settings()
