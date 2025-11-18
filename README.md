@@ -20,6 +20,6 @@ To test locally you need a token:
 
 To run the the api locally with docker and s3 bucket online
 1. fix the .env file (with the values provided)
-2. run docker build -t fastapi-app .
+2. run docker build -t fastapi-app . (to push to ECR from windows use this instead: docker build --platform linux/amd64 --provenance false -t troposphere-api-repo .
 3. docker run -d --name fastapi-container --env-file .env -p 8000:80 fastapi-app
 4. make sure to allow access in the rds for your pc
