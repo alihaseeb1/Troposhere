@@ -215,4 +215,77 @@ curl -H "Authorization: Bearer <your_token>" http://localhost:8000/items
 
 ---
 
+🧩 API Modules
+
+Below is an overview of each router included in the app:
+
+1. Authentication (/login, /auth)
+
+Handles login, session management, and token generation.
+
+Generate authentication token
+
+Validate user credentials
+
+2. Users (/users)
+
+Endpoints for managing platform users.
+
+Create users
+
+Retrieve users
+
+Update/delete users (if implemented)
+
+3. Clubs (/clubs)
+
+Manages club-related information.
+
+Register new clubs
+
+View all clubs
+
+Modify club details
+
+4. Items (/items)
+
+Handles the inventory of items within clubs.
+
+Add new items
+
+View items by club
+
+Update item details
+
+5. Borrow (/borrow)
+
+Handles item borrowing workflows.
+
+Request to borrow an item
+
+View borrow requests
+
+Approve/deny borrow actions (if implemented)
+
+6. Returns (/returns)
+
+Manages the return process.
+
+Submit an item return
+
+Mark an item as returned
+
+📂 Technologies Used
+
+FastAPI for high-performance API development
+
+SQLAlchemy ORM with async support
+
+Alembic for database migrations
+
+PostgreSQL (local or AWS RDS)
+
+Docker for containerized development
+
+AWS S3 (optional) for storage of images
 
