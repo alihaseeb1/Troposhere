@@ -1,8 +1,29 @@
-# FastAPI Project Setup & Usage Guide
+# Troposphere API | FastAPI Project Setup & Usage Guide
 
 This document explains how to install, run, and test the FastAPI app locally (with and without Docker), how to configure the database, and how to interact with the API.
 
 ---
+
+📘 Notes About the FastAPI API
+📝 API Description
+
+The FastAPI application provides a complete backend system designed for authentication, inventory/asset management, and administrative operations. It follows a modular architecture using FastAPI Routers to keep each domain separated and maintainable.
+
+🔑 Core Capabilities
+
+User Authentication & Sessions: Secure login flow with token-based authentication. Tokens can be used to authorize both browser-based and API client requests.
+
+Role-Based Access (if enabled): Certain endpoints may only be accessed by authenticated or privileged users (Club Roles - Admin, Moderator and Member, Global Roles - SuperUser and User).
+
+Inventory / Clubs Management: Endpoints for creating, viewing, updating, and managing clubs, items, and related entities.
+
+Borrow & Return Workflow: Full borrowing system where users can request items, borrow them, and return them. Includes status tracking and validations.
+
+User Management: Admin-level endpoints to create, view, and manage user accounts.
+
+Logging: Centralized logging for server activity.
+
+Cloud-Ready: Built to support AWS RDS (PostgreSQL) and S3 interactions.
 
 ## 📦 Project Installation (Local Development)
 
@@ -193,3 +214,5 @@ curl -H "Authorization: Bearer <your_token>" http://localhost:8000/items
 * S3 buckets need proper IAM permissions for your app.
 
 ---
+
+
