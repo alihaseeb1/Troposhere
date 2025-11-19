@@ -1,3 +1,7 @@
+<img width="1201" height="838" alt="AWS_Architecture Diagram" src="https://github.com/user-attachments/assets/20597016-840b-4885-8a16-f038a1ac5b51" />
+<img width="719" height="820" alt="image" src="https://github.com/user-attachments/assets/ae8dceeb-3e6f-467c-a2ba-b90e239dc9b0" />
+
+
 # Troposphere API | FastAPI Project Setup & Usage Guide
 
 This document explains how to install, run, and test the FastAPI app locally (with and without Docker), how to configure the database, and how to interact with the API.
